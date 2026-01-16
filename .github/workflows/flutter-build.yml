@@ -60,24 +60,13 @@ jobs:
       - name: Build AAB (Release)
         run: flutter build appbundle --release
 
-      # ✅ Upload build outputs as Artifacts (every run)
-      - name: Upload APK Artifact
-        uses: softprops/action-gh-release@v1
-        with:
-          name: android-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload AAB Artifact
-        uses: softprops/action-gh-release@v1
-        with:
-          name: android-aab
-          path: build/app/outputs/bundle/release/app-release.aab
-
-      # ✅ Upload to GitHub Releases ONLY when tag is pushed (v1.0.0)
+      # ✅ Upload to GitHub Release ONLY when tag is pushed (v1.0.0)
       - name: Upload Android to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
           files: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
@@ -101,7 +90,7 @@ jobs:
       - name: Disable Flutter Analytics (optional)
         run: flutter config --no-analytics
 
-      # ✅ Auto increment build number for iOS too (macOS sed syntax)
+      # ✅ Auto increment build number for iOS too
       - name: Set build number in pubspec.yaml
         run: |
           BUILD_NUMBER=${{ github.run_number }}
@@ -127,9 +116,22 @@ jobs:
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
 
-      # ✅ Upload iOS build output as artifact (every run)
-      - name: Upload iOS Build Artifact
-        uses: actions/upload-artifact@v4
+      # ✅ Zip iOS build output (Release needs a file, not a folder)
+      - name: Zip iOS Build Output
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd build
+          zip -r ios-build.zip ios
+          ls -lh ios-build.zip
+
+      # ✅ Upload iOS Zip to GitHub Release (tags only)
+      - name: Upload iOS to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
         with:
-          name: ios-build
-          path: build/ios
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          files: |
+            build/ios-build.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
