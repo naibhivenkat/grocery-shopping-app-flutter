@@ -32,11 +32,23 @@ android {
         versionName = flutter.versionName
     }
 
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
-        }
+buildTypes {
+    release {
+        // ✅ For testing (release build but debug keystore)
+        signingConfig = signingConfigs.getByName("debug")
+
+        // ✅ IMPORTANT: prevent removing notification icon resource
+        isMinifyEnabled = false
+        isShrinkResources = false
     }
+
+    debug {
+        // optional
+        isMinifyEnabled = false
+        isShrinkResources = false
+    }
+}
+
 }
 
 flutter {

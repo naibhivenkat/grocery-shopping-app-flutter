@@ -29,7 +29,10 @@ class NotificationService {
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
     // 3. Setup Local Notifications (For Foreground display)
-    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const AndroidInitializationSettings androidSettings =
+    AndroidInitializationSettings('@mipmap/ic_notification');
+
+
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
     
     await _localNotifications.initialize(initSettings);
@@ -61,7 +64,7 @@ class NotificationService {
               channel.id,
               channel.name,
               channelDescription: channel.description,
-              icon: android.smallIcon,
+              icon: '@mipmap/ic_notification',
               importance: Importance.high,
               priority: Priority.high,
             ),
