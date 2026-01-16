@@ -1,15 +1,20 @@
-name: Flutter Build (Android + iOS)
+name: Flutter CI (Android + iOS)
 
 on:
   push:
     branches: [ "flutter-dev", "main", "master" ]
+    tags:
+      - "v*"
   pull_request:
     branches: [ "flutter-dev", "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   android:
-    name: Build Android (APK + AAB)
+    name: Android Build (APK + AAB)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,7 +24,7 @@ jobs:
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
 
       - name: Setup Flutter (Stable)
@@ -31,20 +36,20 @@ jobs:
       - name: Disable Flutter Analytics (optional)
         run: flutter config --no-analytics
 
-      # ✅ Auto increment build number (+xxx)
-      - name: Auto set build number (Android)
+      # ✅ Auto increment build number using GitHub run number
+      - name: Set build number in pubspec.yaml
         run: |
           BUILD_NUMBER=${{ github.run_number }}
           echo "Using build number: $BUILD_NUMBER"
           sed -i "s/version: \(.*\)+.*/version: \1+$BUILD_NUMBER/" pubspec.yaml
-          echo "Updated pubspec.yaml version:"
+          echo "Updated version:"
           grep "version:" pubspec.yaml
 
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # ✅ Firebase json from secret (required for release build)
-      - name: Create google-services.json
+      # ✅ Restore Firebase google-services.json from GitHub Secret
+      - name: Restore google-services.json (Android)
         run: |
           mkdir -p android/app
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
@@ -55,6 +60,7 @@ jobs:
       - name: Build AAB (Release)
         run: flutter build appbundle --release
 
+      # ✅ Upload build outputs as Artifacts (every run)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -67,8 +73,19 @@ jobs:
           name: android-aab
           path: build/app/outputs/bundle/release/app-release.aab
 
+      # ✅ Upload to GitHub Releases ONLY when tag is pushed (v1.0.0)
+      - name: Upload Android to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   ios:
-    name: Build iOS (No Signing)
+    name: iOS Build (No Signing)
     runs-on: macos-latest
 
     steps:
@@ -84,14 +101,13 @@ jobs:
       - name: Disable Flutter Analytics (optional)
         run: flutter config --no-analytics
 
-      # ✅ Auto increment build number (+xxx) for iOS also
-      - name: Auto set build number (iOS)
+      # ✅ Auto increment build number for iOS too (macOS sed syntax)
+      - name: Set build number in pubspec.yaml
         run: |
           BUILD_NUMBER=${{ github.run_number }}
           echo "Using build number: $BUILD_NUMBER"
-          # macOS sed requires empty string after -i
           sed -i '' "s/version: \(.*\)+.*/version: \1+$BUILD_NUMBER/" pubspec.yaml
-          echo "Updated pubspec.yaml version:"
+          echo "Updated version:"
           grep "version:" pubspec.yaml
 
       - name: Flutter Pub Get
@@ -111,87 +127,9 @@ jobs:
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
 
-      # ✅ Upload iOS build output (not IPA)
+      # ✅ Upload iOS build output as artifact (every run)
       - name: Upload iOS Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ios-build
           path: build/ios
-
-
-  #   name: Build Android (APK + AAB)
-  #   runs-on: ubuntu-latest
-
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@v4
-
-  #     - name: Setup Java 17
-  #       uses: actions/setup-java@v4
-  #       with:
-  #         distribution: "temurin"
-  #         java-version: "17"
-
-  #     - name: Setup Flutter (Stable)
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         channel: stable
-  #         cache: true
-
-  #     - name: Disable Flutter Analytics (optional)
-  #       run: flutter config --no-analytics
-
-  #     - name: Flutter Pub Get
-  #       run: flutter pub get
-
-  #     - name: Build APK (Release)
-  #       run: flutter build apk --release
-
-  #     - name: Build AAB (Release)
-  #       run: flutter build appbundle --release
-
-  #     - name: Upload APK
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: android-apk
-  #         path: build/app/outputs/flutter-apk/app-release.apk
-
-  #     - name: Upload AAB
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: android-aab
-  #         path: build/app/outputs/bundle/release/app-release.aab
-
-  # ios:
-  #   name: Build iOS (No Signing)
-  #   runs-on: macos-latest
-
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@v4
-
-  #     - name: Setup Flutter (Stable)
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         channel: stable
-  #         cache: true
-
-  #     - name: Disable Flutter Analytics (optional)
-  #       run: flutter config --no-analytics
-
-  #     - name: Flutter Pub Get
-  #       run: flutter pub get
-
-  #     - name: Install CocoaPods
-  #       run: |
-  #         sudo gem install cocoapods
-  #         pod --version
-
-  #     - name: Pod Install
-  #       run: |
-  #         cd ios
-  #         pod install --repo-update
-  #         cd ..
-
-  #     - name: Build iOS (Release - No CodeSign)
-  #       run: flutter build ios --release --no-codesign
