@@ -62,13 +62,13 @@ jobs:
 
       # ✅ Upload build outputs as Artifacts (every run)
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v1
         with:
           name: android-apk
           path: build/app/outputs/flutter-apk/app-release.apk
 
       - name: Upload AAB Artifact
-        uses: actions/upload-artifact@v4
+        uses: softprops/action-gh-release@v1
         with:
           name: android-aab
           path: build/app/outputs/bundle/release/app-release.aab
