@@ -36,7 +36,6 @@ jobs:
       - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
-      # ✅ Auto increment build number using GitHub run number
       - name: Set build number in pubspec.yaml
         run: |
           BUILD_NUMBER=${{ github.run_number }}
@@ -48,7 +47,6 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # ✅ Restore Firebase google-services.json from GitHub Secret
       - name: Restore google-services.json (Android)
         run: |
           mkdir -p android/app
@@ -60,7 +58,6 @@ jobs:
       - name: Build AAB (Release)
         run: flutter build appbundle --release
 
-      # ✅ Upload to GitHub Release ONLY when tag is pushed (v1.0.0)
       - name: Upload Android to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -93,7 +90,6 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-      # ✅ Auto increment build number for iOS too
       - name: Set build number in pubspec.yaml
         run: |
           BUILD_NUMBER=${{ github.run_number }}
@@ -105,24 +101,27 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # ✅ Restore iOS GoogleService-Info.plist from GitHub Secret
+      - name: Precache iOS Flutter artifacts
+        run: flutter precache --ios
+
       - name: Restore GoogleService-Info.plist (iOS)
         run: |
           mkdir -p ios/Runner
           echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
 
-      # ✅ Install stable CocoaPods version (avoids random failures)
       - name: Setup CocoaPods
         run: |
           sudo gem uninstall cocoapods -aIx || true
-          sudo gem install cocoapods -v 1.15.2
+          sudo gem install cocoapods -v 1.16.2
           pod --version
 
-      # ✅ Clean Pods folders (safe)
-      - name: Clean Pods folder
+      - name: Reset iOS Pods
         run: |
-          rm -rf ios/Pods
-          rm -rf ios/.symlinks
+          cd ios
+          pod deintegrate
+          rm -rf Pods
+          rm -f Podfile.lock
+          cd ..
 
       - name: Pod Install
         run: |
@@ -133,7 +132,6 @@ jobs:
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
 
-      # ✅ Zip iOS build output (tags only)
       - name: Zip iOS Build Output
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -141,7 +139,6 @@ jobs:
           zip -r ios-build.zip ios
           ls -lh ios-build.zip
 
-      # ✅ Upload iOS Zip to GitHub Release (tags only)
       - name: Upload iOS to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
