@@ -241,9 +241,6 @@ jobs:
     name: iOS Build (No Signing)
     runs-on: macos-latest
 
-    # ✅ Build iOS only on tags OR main (saves time)
-    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
