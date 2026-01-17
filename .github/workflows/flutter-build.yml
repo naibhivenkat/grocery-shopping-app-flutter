@@ -2,11 +2,11 @@ name: Flutter CI (Android + iOS)
 
 on:
   push:
-    branches: [ "flutter-dev", "main", "master" ]
+    branches: ["flutter-dev", "main", "master"]
     tags:
       - "v*"
   pull_request:
-    branches: [ "flutter-dev", "main", "master" ]
+    branches: ["flutter-dev", "main", "master"]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Disable Flutter Analytics (optional)
+      - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
       # ✅ Auto increment build number using GitHub run number
@@ -87,8 +87,11 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Disable Flutter Analytics (optional)
+      - name: Disable Flutter Analytics
         run: flutter config --no-analytics
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
       # ✅ Auto increment build number for iOS too
       - name: Set build number in pubspec.yaml
@@ -102,21 +105,35 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      - name: Install CocoaPods
+      # ✅ Restore iOS GoogleService-Info.plist from GitHub Secret
+      - name: Restore GoogleService-Info.plist (iOS)
         run: |
-          sudo gem install cocoapods
+          mkdir -p ios/Runner
+          echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
+
+      # ✅ Install stable CocoaPods version (avoids random failures)
+      - name: Setup CocoaPods
+        run: |
+          sudo gem uninstall cocoapods -aIx || true
+          sudo gem install cocoapods -v 1.15.2
           pod --version
+
+      # ✅ Clean Pods folders (safe)
+      - name: Clean Pods folder
+        run: |
+          rm -rf ios/Pods
+          rm -rf ios/.symlinks
 
       - name: Pod Install
         run: |
           cd ios
-          pod install --repo-update
+          pod install
           cd ..
 
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
 
-      # ✅ Zip iOS build output (Release needs a file, not a folder)
+      # ✅ Zip iOS build output (tags only)
       - name: Zip iOS Build Output
         if: startsWith(github.ref, 'refs/tags/')
         run: |
@@ -131,7 +148,6 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: "Release ${{ github.ref_name }}"
-          files: |
-            build/ios-build.zip
+          files: build/ios-build.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

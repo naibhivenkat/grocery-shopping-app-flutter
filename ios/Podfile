@@ -1,8 +1,6 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
-platform :ios, '15.0'
+platform :ios, '13.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+# CocoaPods analytics sends network stats (slow in CI)
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {
@@ -14,14 +12,14 @@ project 'Runner', {
 def flutter_root
   generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
   unless File.exist?(generated_xcode_build_settings_path)
-    raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
+    raise "#{generated_xcode_build_settings_path} must exist. Run 'flutter pub get' first."
   end
 
   File.foreach(generated_xcode_build_settings_path) do |line|
     matches = line.match(/FLUTTER_ROOT\=(.*)/)
     return matches[1].strip if matches
   end
-  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
+  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}"
 end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
@@ -30,20 +28,36 @@ flutter_ios_podfile_setup
 
 target 'Runner' do
   use_frameworks!
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
-  target 'RunnerTests' do
-    inherit! :search_paths
-  end
 end
 
 post_install do |installer|
   installer.pods_project.targets.each do |target|
-    flutter_additional_ios_build_settings(target)
-
-    # ✅ Force all pods to iOS 15.0 (Fix for cloud_firestore + Firebase pods)
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
+      # ✅ Ensure minimum deployment target
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+
+      # ✅ Fix invalid -G flag (causes "unsupported option -G for arm64-apple-ios")
+      if config.build_settings['OTHER_CFLAGS'].is_a?(Array)
+        config.build_settings['OTHER_CFLAGS'] = config.build_settings['OTHER_CFLAGS'].reject { |f| f == '-G' }
+      end
+
+      if config.build_settings['OTHER_CPLUSPLUSFLAGS'].is_a?(Array)
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = config.build_settings['OTHER_CPLUSPLUSFLAGS'].reject { |f| f == '-G' }
+      end
+
+      # ✅ Sometimes flags are in string too
+      if config.build_settings['OTHER_CFLAGS'].is_a?(String)
+        config.build_settings['OTHER_CFLAGS'] = config.build_settings['OTHER_CFLAGS'].split.reject { |f| f == '-G' }.join(' ')
+      end
+
+      if config.build_settings['OTHER_CPLUSPLUSFLAGS'].is_a?(String)
+        config.build_settings['OTHER_CPLUSPLUSFLAGS'] = config.build_settings['OTHER_CPLUSPLUSFLAGS'].split.reject { |f| f == '-G' }.join(' ')
+      end
+
     end
   end
 end
