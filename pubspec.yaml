@@ -23,9 +23,9 @@ dependencies:
   image_picker: ^1.2.1
 
   # ✅ Firebase (Pinned for Ventura + Xcode 14.3.1 + Android)
-  firebase_core: 2.25.2
-  cloud_firestore: 4.15.2
-  firebase_messaging: 14.7.10
+  firebase_core: ^4.3.0
+  cloud_firestore: ^6.1.1
+  firebase_messaging: ^16.1.0
 
   flutter_local_notifications: ^19.5.0
   lottie: ^3.1.0
@@ -37,7 +37,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
 
-  flutter_launcher_icons: ^0.13.1
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^6.0.0
 
 flutter:
