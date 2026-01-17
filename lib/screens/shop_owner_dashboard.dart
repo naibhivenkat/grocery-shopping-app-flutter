@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/session_manager.dart'; // ✅ Use this!
+
+import '../services/session_manager.dart';
 import 'login_screen.dart';
-import 'create_shop_screen.dart'; 
-import 'add_items_screen.dart';   
+import 'create_shop_screen.dart';
+import 'add_items_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'shop_analytics_screen.dart';
@@ -19,20 +21,29 @@ class PlaceholderScreen extends StatelessWidget {
   final String title;
   const PlaceholderScreen(this.title, {super.key});
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(title)));
+  Widget build(BuildContext context) =>
+      Scaffold(appBar: AppBar(title: Text(title)));
 }
 
 class ShopOwnerDashboardScreen extends StatefulWidget {
   const ShopOwnerDashboardScreen({super.key});
 
   @override
-  State<ShopOwnerDashboardScreen> createState() => _ShopOwnerDashboardScreenState();
+  State<ShopOwnerDashboardScreen> createState() =>
+      _ShopOwnerDashboardScreenState();
 }
 
 class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
-  final String baseUrl = "https://grocery-backend-956424262985.asia-south1.run.app"; 
+  final String baseUrl =
+      "https://grocery-backend-956424262985.asia-south1.run.app";
+
   bool _isLoading = true;
   String _shopName = "My Shop";
+
+  // ✅ Owner Profile Photo + Name
+  String _ownerName = "Shop Owner";
+  String? _photoUrl;
+  Uint8List? _photoBytes;
 
   @override
   void initState() {
@@ -40,8 +51,69 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
     _checkShopStatus();
   }
 
+  // ✅ Load Owner Name + Photo (same logic as customer)
+  Future<void> _loadOwnerProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final name = prefs.getString("fullName") ??
+        prefs.getString("username") ??
+        "Shop Owner";
+
+    final url = prefs.getString("photo_url") ?? prefs.getString("photoUrl");
+    final base64Img =
+        prefs.getString("photo_base64") ?? prefs.getString("photoBase64");
+
+    Uint8List? decodedBytes;
+    if (base64Img != null && base64Img.isNotEmpty) {
+      try {
+        decodedBytes = base64Decode(base64Img);
+      } catch (_) {
+        decodedBytes = null;
+      }
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _ownerName = name;
+      _photoUrl = (url != null && url.isNotEmpty) ? url : null;
+      _photoBytes = decodedBytes;
+    });
+  }
+
+  Widget _buildOwnerAvatar() {
+    // ✅ 1st priority: URL
+    if (_photoUrl != null) {
+      return CircleAvatar(
+        radius: 28,
+        backgroundColor: Colors.white,
+        backgroundImage: NetworkImage(_photoUrl!),
+        onBackgroundImageError: (_, __) {},
+      );
+    }
+
+    // ✅ 2nd priority: Base64
+    if (_photoBytes != null) {
+      return CircleAvatar(
+        radius: 28,
+        backgroundColor: Colors.white,
+        backgroundImage: MemoryImage(_photoBytes!),
+      );
+    }
+
+    // ✅ fallback icon
+    return const CircleAvatar(
+      radius: 28,
+      backgroundColor: Colors.white,
+      child: Icon(Icons.store, color: Colors.blueAccent, size: 28),
+    );
+  }
+
   // --- LOGIC: CHECK SHOP & ITEMS ---
   Future<void> _checkShopStatus() async {
+    // ✅ Load owner profile first
+    await _loadOwnerProfile();
+
     // 1. Get Basic Info via SessionManager
     final token = await SessionManager.getAuthToken();
     final shopkeeperId = await SessionManager.getShopkeeperId();
@@ -65,13 +137,13 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
           final data = jsonDecode(response.body);
           if (data['shop'] != null) {
             final shop = data['shop'];
-            shopId = shop['id']; 
+            shopId = shop['id'];
             _shopName = shop['name'] ?? "My Shop";
-            
-            // ✅ FIX: Use SessionManager to save (Ensures correct Key)
+
+            // ✅ FIX: Save in session correctly
             await SessionManager.setShopInfo(shopId!, _shopName);
           } else {
-            _navigateTo('/create_shop'); 
+            _navigateTo('/create_shop');
             return;
           }
         } else {
@@ -89,14 +161,14 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
     if (shopId != null) {
       final prefs = await SharedPreferences.getInstance();
       bool hasItems = prefs.getBool('hasItemsAdded') ?? false;
-      
+
       if (!hasItems) {
         try {
           final itemResp = await http.get(
             Uri.parse('$baseUrl/api/shops/$shopId/items'),
             headers: {"Authorization": "Bearer $token"},
           );
-          
+
           if (itemResp.statusCode == 200) {
             final itemData = jsonDecode(itemResp.body);
             final List items = itemData['items'] ?? [];
@@ -122,15 +194,13 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
 
   void _navigateTo(String routeName) {
     if (!mounted) return;
-    
+
     if (routeName == '/create_shop') {
       Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const CreateShopScreen())
-      );
+          context, MaterialPageRoute(builder: (_) => const CreateShopScreen()));
     } else if (routeName == '/add_items') {
       Navigator.pushReplacement(
-        context, MaterialPageRoute(builder: (_) => const AddItemsScreen())
-      );
+          context, MaterialPageRoute(builder: (_) => const AddItemsScreen()));
     }
   }
 
@@ -166,7 +236,8 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
           ),
         ],
       ),
-      
+
+      // ✅ UPDATED DRAWER WITH OWNER PHOTO
       endDrawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -177,41 +248,62 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  const Icon(Icons.store, size: 48, color: Colors.white),
+                  _buildOwnerAvatar(),
                   const SizedBox(height: 10),
-                  Text(_shopName, style: const TextStyle(color: Colors.white, fontSize: 20)),
+                  Text(
+                    "Hello, $_ownerName",
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _shopName,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
                 ],
               ),
             ),
+
             ListTile(
               leading: const Icon(Icons.person),
               title: const Text('Profile'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              onTap: () {
+                Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const ProfileScreen()))
+                    .then((_) async {
+                  // ✅ refresh after profile update
+                  await _loadOwnerProfile();
+                });
+              },
             ),
             ListTile(
               leading: const Icon(Icons.inventory),
               title: const Text('Manage Items'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ManageItemsScreen())),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ManageItemsScreen())),
             ),
             const Divider(),
 
-            // In the Drawer list...
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Settings'),
-              // ✅ Link to SettingsScreen
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen())),
             ),
 
             ListTile(
               leading: const Icon(Icons.analytics),
               title: const Text('Analytics'),
-              // ✅ Link to SettingsScreen
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopAnalyticsScreen())),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ShopAnalyticsScreen())),
             ),
+
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
+              title:
+                  const Text('Logout', style: TextStyle(color: Colors.red)),
               onTap: _forceLogout,
             ),
           ],
@@ -229,7 +321,9 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
                 padding: EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Text("Welcome Back!", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    Text("Welcome Back!",
+                        style:
+                            TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     SizedBox(height: 5),
                     Text("Here is what's happening in your shop today."),
                   ],
@@ -237,7 +331,6 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             Expanded(
               child: GridView.count(
                 crossAxisCount: 2,
@@ -245,32 +338,44 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
                 mainAxisSpacing: 16,
                 children: [
                   _buildDashboardCard(
-                    icon: Icons.list_alt, 
-                    label: "View Orders", 
+                    icon: Icons.list_alt,
+                    label: "View Orders",
                     color: Colors.blue,
-                    // ✅ Navigate to Orders
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopOwnerOrdersScreen())), 
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ShopOwnerOrdersScreen()),
+                    ),
                   ),
                   _buildDashboardCard(
-                    icon: Icons.inventory_2_outlined, 
-                    label: "Add Items", 
+                    icon: Icons.inventory_2_outlined,
+                    label: "Add Items",
                     color: Colors.orange,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddItemsScreen())),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AddItemsScreen()),
+                    ),
                   ),
                   _buildDashboardCard(
-                    icon: Icons.account_balance_wallet_outlined, 
-                    label: "Wallet", 
+                    icon: Icons.account_balance_wallet_outlined,
+                    label: "Wallet",
                     color: Colors.purple,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopOwnerWalletScreen())),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ShopOwnerWalletScreen()),
+                    ),
                   ),
                   _buildDashboardCard(
-                    icon: Icons.menu_book, 
-                    label: "Khata Book", 
+                    icon: Icons.menu_book,
+                    label: "Khata Book",
                     color: Colors.teal,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopKhataListScreen())),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ShopKhataListScreen()),
+                    ),
                   ),
-
-
                 ],
               ),
             ),
@@ -280,7 +385,12 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
     );
   }
 
-  Widget _buildDashboardCard({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+  Widget _buildDashboardCard({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -296,7 +406,9 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
               child: Icon(icon, color: color, size: 30),
             ),
             const SizedBox(height: 12),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(label,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
       ),

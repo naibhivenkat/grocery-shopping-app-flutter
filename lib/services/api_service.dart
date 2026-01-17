@@ -400,21 +400,27 @@ static Future<List<dynamic>> getMyKhataAccounts(String customerId) async {
   }
 
   // --- UPDATE PROFILE ---
-  static Future<bool> updateProfile(Map<String, String> profileData) async {
-    try {
-      // Endpoint matches Kotlin logic (likely '/update_profile')
-      // Assuming your Kotlin ApiClient uses baseUrl
-      final response = await http.post(
-        Uri.parse('$baseUrl/update_profile'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode(profileData),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      print("Error updating profile: $e");
-      return false;
+static Future<String?> updateProfile(Map<String, String> profileData) async {
+  try {
+    final response = await http.post(
+      Uri.parse('$baseUrl/update_profile'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(profileData),
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      if (body["success"] == true) {
+        return body["photo_url"]; // ✅ may be "" if not uploaded
+      }
     }
+    return null;
+  } catch (e) {
+    print("Error updating profile: $e");
+    return null;
   }
+}
+
 
   // --- CHANGE PASSWORD ---
   static Future<Map<String, dynamic>> changePassword(String username, String oldPassword, String newPassword) async {
