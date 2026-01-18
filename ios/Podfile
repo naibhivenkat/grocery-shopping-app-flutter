@@ -39,17 +39,11 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
 
-      # ✅ Do NOT force Swift 6 (let Xcode decide)
+      # ✅ Do NOT force Swift 6
       config.build_settings.delete('SWIFT_VERSION')
 
-      # ✅ Fix FirebaseSharedSwift concurrency warnings safely
+      # ✅ Fix FirebaseSharedSwift concurrency issue safely
       config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-
-      # ✅ IMPORTANT: correct upcoming-feature syntax
-      config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']
-      config.build_settings['OTHER_SWIFT_FLAGS'] << '-Xfrontend'
-      config.build_settings['OTHER_SWIFT_FLAGS'] << '-enable-upcoming-feature'
-      config.build_settings['OTHER_SWIFT_FLAGS'] << 'StrictConcurrency'
 
       # ✅ gRPC fixes (safe)
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
