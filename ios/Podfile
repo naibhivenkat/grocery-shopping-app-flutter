@@ -26,7 +26,7 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 # ✅ FINAL FIX: Use Firebase iOS SDK version without Swift6 "sending"
-$FirebaseSDKVersion = '10.29.0'
+$FirebaseSDKVersion = '11.6.0'
 
 target 'Runner' do
   use_frameworks! :linkage => :static
