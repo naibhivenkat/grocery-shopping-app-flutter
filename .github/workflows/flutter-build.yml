@@ -13,74 +13,74 @@ permissions:
   contents: write
 
 jobs:
-  # android:
-  #   name: Android Build (APK + AAB)
-  #   runs-on: ubuntu-latest
+  android:
+    name: Android Build (APK + AAB)
+    runs-on: ubuntu-latest
 
-  #   steps:
-  #     - name: Checkout Code
-  #       uses: actions/checkout@v4
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-  #     - name: Setup Java 17
-  #       uses: actions/setup-java@v4
-  #       with:
-  #         distribution: temurin
-  #         java-version: "17"
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-  #     - name: Setup Flutter (Stable)
-  #       uses: subosito/flutter-action@v2
-  #       with:
-  #         channel: stable
-  #         cache: true
+      - name: Setup Flutter (Stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
 
-  #     - name: Disable Flutter Analytics
-  #       run: flutter config --no-analytics
+      - name: Disable Flutter Analytics
+        run: flutter config --no-analytics
 
-  #     - name: Set build number in pubspec.yaml
-  #       run: |
-  #         BUILD_NUMBER=${{ github.run_number }}
-  #         echo "Using build number: $BUILD_NUMBER"
-  #         sed -i "s/version: \(.*\)+.*/version: \1+$BUILD_NUMBER/" pubspec.yaml
-  #         echo "Updated version:"
-  #         grep "version:" pubspec.yaml
+      - name: Set build number in pubspec.yaml
+        run: |
+          BUILD_NUMBER=${{ github.run_number }}
+          echo "Using build number: $BUILD_NUMBER"
+          sed -i "s/version: \(.*\)+.*/version: \1+$BUILD_NUMBER/" pubspec.yaml
+          echo "Updated version:"
+          grep "version:" pubspec.yaml
 
-  #     - name: Flutter Pub Get
-  #       run: flutter pub get
+      - name: Flutter Pub Get
+        run: flutter pub get
 
-  #     - name: Restore google-services.json (Android)
-  #       run: |
-  #         mkdir -p android/app
-  #         echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+      - name: Restore google-services.json (Android)
+        run: |
+          mkdir -p android/app
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
-  #     - name: Cache Gradle
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: |
-  #           ~/.gradle/caches
-  #           ~/.gradle/wrapper
-  #         key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-  #         restore-keys: |
-  #           ${{ runner.os }}-gradle-
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
 
-  #     - name: Build APK (Release)
-  #       run: flutter build apk --release --split-per-abi
+      - name: Build APK (Release)
+        run: flutter build apk --release --split-per-abi
 
-  #     - name: Build AAB (Release)
-  #       run: flutter build appbundle --release
+      - name: Build AAB (Release)
+        run: flutter build appbundle --release
 
-  #     - name: Upload Android to GitHub Release (tags only)
-  #       if: startsWith(github.ref, 'refs/tags/')
-  #       uses: softprops/action-gh-release@v2
-  #       with:
-  #         tag_name: ${{ github.ref_name }}
-  #         name: "Release ${{ github.ref_name }}"
-  #         files: |
-  #           build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-  #           build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
-  #           build/app/outputs/flutter-apk/app-x86_64-release.apk
-  #           build/app/outputs/bundle/release/app-release.aab
-  #       env:
-  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Android to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          files: |
+            build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+            build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk
+            build/app/outputs/flutter-apk/app-x86_64-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   ios:
     name: iOS Build (macos-14 - No Signing)
@@ -115,7 +115,6 @@ jobs:
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # ✅ Full wipe pods + cocoapods cache (important!)
       - name: Force Fresh CocoaPods
         run: |
           rm -rf ios/Pods
@@ -131,7 +130,6 @@ jobs:
           pod install --repo-update
           cd ..
 
-      # ✅ verify the FirebaseSharedSwift version installed (should be old)
       - name: Verify Firebase pods installed
         run: |
           echo "Checking FirebaseSharedSwift version..."
@@ -140,3 +138,29 @@ jobs:
 
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
+
+      # ✅ NEW ✅ Upload Runner.app as artifact (every run)
+      - name: Upload iOS Runner.app Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-runner-app
+          path: build/ios/iphoneos/Runner.app
+
+      # ✅ Zip iOS build output only for tags
+      - name: Zip iOS build output (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd build
+          zip -r ios-device-build.zip ios
+          ls -lh ios-device-build.zip
+
+      # ✅ Upload iOS zip to GitHub Release (tags only)
+      - name: Upload iOS zip to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          files: build/ios-device-build.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
