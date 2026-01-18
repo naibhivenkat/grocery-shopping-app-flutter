@@ -36,14 +36,6 @@ jobs:
       - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
-      - name: Set build number in pubspec.yaml
-        run: |
-          BUILD_NUMBER=${{ github.run_number }}
-          echo "Using build number: $BUILD_NUMBER"
-          sed -i "s/version: \(.*\)+.*/version: \1+$BUILD_NUMBER/" pubspec.yaml
-          echo "Updated version:"
-          grep "version:" pubspec.yaml
-
       - name: Flutter Pub Get
         run: flutter pub get
 
@@ -52,23 +44,12 @@ jobs:
           mkdir -p android/app
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
       - name: Build APK (Release)
         run: flutter build apk --release --split-per-abi
 
       - name: Build AAB (Release)
         run: flutter build appbundle --release
 
-      # ✅ Upload Android only on tag releases (v1.0.0)
       - name: Upload Android to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
@@ -84,7 +65,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   ios:
-    name: iOS Build (Self-hosted Mac - No Signing)
+    name: iOS Build (Self-hosted Mac - Simulator Release)
     runs-on: [self-hosted, macOS, X64]
 
     steps:
@@ -105,14 +86,13 @@ jobs:
       - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
-      # ✅ No sudo here (avoids password issue)
-      - name: Xcode Info + iOS SDK Check
+      - name: Xcode Info + SDK Check
         run: |
           echo "Xcode Path:"
           xcode-select -p
           echo "Xcode Version:"
           xcodebuild -version
-          echo "Installed SDKs:"
+          echo "SDKs:"
           xcodebuild -showsdks
 
       - name: Flutter Pub Get
@@ -123,32 +103,31 @@ jobs:
           mkdir -p ios/Runner
           echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
 
-      # ✅ Faster CocoaPods install
       - name: Pod Install
         run: |
           cd ios
           pod install --repo-update
           cd ..
 
-      # ✅ iOS Build - No Codesign
-      - name: Build iOS (Release - No CodeSign)
-        run: flutter build ios --release --no-codesign
+      # ✅ MAIN FIX: build for simulator (no iOS 17.5 device SDK needed)
+      - name: Build iOS Simulator (Release)
+        run: flutter build ios --simulator --release
 
-      # ✅ Zip iOS build only for tags
-      - name: Zip iOS Build Output
+      # ✅ Zip Simulator build only for tags
+      - name: Zip iOS Simulator Build Output
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          cd build
-          zip -r ios-build.zip ios
-          ls -lh ios-build.zip
+          cd build/ios/iphonesimulator
+          zip -r ios-simulator-build.zip Runner.app
+          ls -lh ios-simulator-build.zip
 
-      # ✅ Upload iOS zip only for tags
-      - name: Upload iOS to GitHub Release (tags only)
+      # ✅ Upload zip only for tags
+      - name: Upload iOS Simulator App to GitHub Release (tags only)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "Release ${{ github.ref_name }}"
-          files: build/ios-build.zip
+          files: build/ios/iphonesimulator/ios-simulator-build.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
