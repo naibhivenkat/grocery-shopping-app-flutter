@@ -18,7 +18,7 @@ def flutter_root
     matches = line.match(/FLUTTER_ROOT\=(.*)/)
     return matches[1].strip if matches
   end
-  raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}"
+  raise "FLUTTER_ROOT not found"
 end
 
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
@@ -26,8 +26,8 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 flutter_ios_podfile_setup
 
 target 'Runner' do
-  # ✅ IMPORTANT FIX: static frameworks to avoid grpc modulemap issues
   use_frameworks! :linkage => :static
+  use_modular_headers!
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
@@ -39,9 +39,15 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
 
-      # ✅ Force C++17 to avoid grpc parsing errors on Xcode 16
+      # ✅ Xcode 14 supports Swift 5.8 only
+      config.build_settings['SWIFT_VERSION'] = '5.8'
+
+      # ✅ gRPC fixes (safe)
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
       config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+
+      # ✅ Apple Silicon simulator only (optional)
+      # config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
     end
   end
 end
