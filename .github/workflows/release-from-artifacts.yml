@@ -18,7 +18,7 @@ jobs:
       - name: Checkout (for context only)
         uses: actions/checkout@v4
 
-      - name: Find latest successful CI run on default branch
+      - name: Find latest successful CI run (any branch)
         id: find_run
         uses: actions/github-script@v7
         with:
@@ -29,31 +29,32 @@ jobs:
             // ✅ must match your CI workflow name exactly
             const workflowName = "CI Build (Android + iOS Artifacts)";
 
-            // detect default branch
-            const { data: repoInfo } = await github.rest.repos.get({ owner, repo });
-            const defaultBranch = repoInfo.default_branch;
-
             // list workflows and find ID
             const { data: workflows } = await github.rest.actions.listRepoWorkflows({ owner, repo });
             const wf = workflows.workflows.find(w => w.name === workflowName);
             if (!wf) throw new Error(`Workflow not found: ${workflowName}`);
 
-            // list successful runs for default branch
+            // ✅ find latest successful run from ANY branch
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
               owner,
               repo,
               workflow_id: wf.id,
-              branch: defaultBranch,
               status: "success",
               per_page: 1
             });
 
-            if (!runs.workflow_runs.length) throw new Error("No successful CI runs found.");
+            if (!runs.workflow_runs.length) {
+              throw new Error("No successful CI runs found (any branch). Run CI build once first.");
+            }
 
-            const runId = runs.workflow_runs[0].id;
-            core.setOutput("run_id", runId);
-            core.setOutput("branch", defaultBranch);
-            console.log("Using CI run:", runId, "branch:", defaultBranch);
+            const run = runs.workflow_runs[0];
+            core.setOutput("run_id", run.id);
+            core.setOutput("branch", run.head_branch);
+            core.setOutput("sha", run.head_sha);
+
+            console.log("✅ Using CI run:", run.id);
+            console.log("✅ Branch:", run.head_branch);
+            console.log("✅ SHA:", run.head_sha);
 
       - name: Download Android artifact from CI run
         uses: dawidd6/action-download-artifact@v8
@@ -82,7 +83,7 @@ jobs:
       - name: List downloaded files
         run: |
           echo "Android files:"
-          ls -lh dist/android || true
+          find dist/android -type f -maxdepth 4 -print
           echo "iOS zip:"
           ls -lh dist/ios/ios-runner-app.zip || true
 
