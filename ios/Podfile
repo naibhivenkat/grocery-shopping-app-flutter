@@ -25,17 +25,20 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# ✅ FINAL FIX: Use Firebase iOS SDK version without Swift6 "sending"
+# ✅ Keep Firebase SDK stable for cloud_firestore
 $FirebaseSDKVersion = '11.6.0'
 
 target 'Runner' do
   use_frameworks! :linkage => :static
   use_modular_headers!
 
-  # ✅ Pin Firebase pods (old stable version)
+  # ✅ Firebase pods pinned
   pod 'Firebase/CoreOnly', $FirebaseSDKVersion
   pod 'Firebase/Firestore', $FirebaseSDKVersion
   pod 'Firebase/Messaging', $FirebaseSDKVersion
+
+  # ✅ CRITICAL FIX: stop FirebaseSharedSwift floating to 11.15.0 (Swift6 "sending")
+  pod 'FirebaseSharedSwift', '= 11.6.0'
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
@@ -46,8 +49,6 @@ post_install do |installer|
 
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-
-      # ✅ gRPC fixes
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
       config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
     end
