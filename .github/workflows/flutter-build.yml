@@ -108,25 +108,28 @@ jobs:
           mkdir -p ios/Runner
           echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
 
-      # ✅ Must run before pod install (creates Generated.xcconfig)
-      - name: Flutter Pub Get (Generate Generated.xcconfig)
-        run: flutter pub get
-
+      # ✅ 1) Clean first
       - name: Flutter Clean
         run: flutter clean
 
-      # ✅ SAFE clean (do NOT touch ios/Flutter folder)
-      - name: Clean iOS Pods (SAFE)
+      # ✅ 2) Pub get AFTER clean (this creates ios/Flutter/Generated.xcconfig)
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      # ✅ 3) Clean pods only (do NOT delete ios/Flutter folder)
+      - name: Clean iOS Pods
         run: |
           rm -rf ios/Pods
           rm -rf ios/Podfile.lock
           rm -rf ios/.symlinks
 
+      # ✅ 4) Pod install
       - name: Pod Install
         run: |
           cd ios
           pod install --repo-update
           cd ..
 
+      # ✅ 5) Build iOS
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
