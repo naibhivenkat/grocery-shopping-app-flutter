@@ -84,7 +84,8 @@ jobs:
 
   ios:
     name: iOS Build (Self-hosted Fast - No Signing)
-    runs-on: [self-hosted, mac, intel, ios]
+    runs-on: [self-hosted, macOS, X64]
+
 
     steps:
       - name: Checkout Code
