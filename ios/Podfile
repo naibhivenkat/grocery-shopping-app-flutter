@@ -25,9 +25,17 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
+# ✅ IMPORTANT: Firebase iOS SDK PIN (Swift 5 compatible)
+$FirebaseSDKVersion = '11.10.0'
+
 target 'Runner' do
   use_frameworks! :linkage => :static
   use_modular_headers!
+
+  # ✅ FORCE Firebase pods to use older iOS SDK (pre Swift-6 "sending" keyword)
+  pod 'Firebase/CoreOnly', $FirebaseSDKVersion
+  pod 'Firebase/Firestore', $FirebaseSDKVersion
+  pod 'Firebase/Messaging', $FirebaseSDKVersion
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
@@ -38,12 +46,6 @@ post_install do |installer|
 
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
-
-      # ✅ Do NOT force Swift 6
-      config.build_settings.delete('SWIFT_VERSION')
-
-      # ✅ Fix FirebaseSharedSwift concurrency issue safely
-      config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
 
       # ✅ gRPC fixes (safe)
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'

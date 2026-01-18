@@ -22,7 +22,6 @@ dependencies:
   url_launcher: ^6.3.2
   image_picker: ^1.2.1
 
-  # ✅ Firebase (Pinned)
   firebase_core: ^4.3.0
   cloud_firestore: ^6.1.1
   firebase_messaging: ^16.1.0
