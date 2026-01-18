@@ -68,7 +68,6 @@ jobs:
   #     - name: Build AAB (Release)
   #       run: flutter build appbundle --release
 
-  #     # ✅ Upload Android only for tags (v1.0.0 etc.)
   #     - name: Upload Android to GitHub Release (tags only)
   #       if: startsWith(github.ref, 'refs/tags/')
   #       uses: softprops/action-gh-release@v2
@@ -100,36 +99,54 @@ jobs:
       - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
-      - name: Print Xcode Version
-        run: xcodebuild -version
+      # ✅ Use correct Xcode automatically on GitHub hosted runner
+      - name: Select Latest Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
 
       - name: Restore GoogleService-Info.plist (iOS)
         run: |
           mkdir -p ios/Runner
           echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
 
-      # ✅ 1) Clean first
+      # ✅ IMPORTANT ORDER
       - name: Flutter Clean
         run: flutter clean
 
-      # ✅ 2) Pub get AFTER clean (this creates ios/Flutter/Generated.xcconfig)
       - name: Flutter Pub Get
         run: flutter pub get
 
-      # ✅ 3) Clean pods only (do NOT delete ios/Flutter folder)
+      # ✅ clean pods safely (do NOT delete ios/Flutter folder)
       - name: Clean iOS Pods
         run: |
           rm -rf ios/Pods
           rm -rf ios/Podfile.lock
           rm -rf ios/.symlinks
 
-      # ✅ 4) Pod install
       - name: Pod Install
         run: |
           cd ios
           pod install --repo-update
           cd ..
 
-      # ✅ 5) Build iOS
       - name: Build iOS (Release - No CodeSign)
         run: flutter build ios --release --no-codesign
+
+      # ✅ Zip iOS output only for tags
+      - name: Zip iOS Build Output
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          cd build
+          zip -r ios-device-build.zip ios
+          ls -lh ios-device-build.zip
+
+      - name: Upload iOS to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          files: build/ios-device-build.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

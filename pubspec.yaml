@@ -1,6 +1,6 @@
 name: grocery_app_new_flutter
 description: "A new Flutter project."
-publish_to: 'none'
+publish_to: "none"
 
 version: 1.0.0+1
 
@@ -22,7 +22,7 @@ dependencies:
   url_launcher: ^6.3.2
   image_picker: ^1.2.1
 
-  # ✅ Firebase (Pinned for Ventura + Xcode 14.3.1 + Android)
+  # ✅ Firebase (Pinned)
   firebase_core: ^4.3.0
   cloud_firestore: ^6.1.1
   firebase_messaging: ^16.1.0
