@@ -37,7 +37,14 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
 
     target.build_configurations.each do |config|
+      # ✅ keep your deployment target
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+
+      # ✅ IMPORTANT FIX: FirebaseSharedSwift uses Swift 6 keyword "sending"
+      config.build_settings['SWIFT_VERSION'] = '6.0'
+
+      # ✅ Avoid strict Swift concurrency errors in pods
+      config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
 
       # ✅ gRPC fixes (safe)
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
@@ -45,3 +52,5 @@ post_install do |installer|
     end
   end
 end
+
+

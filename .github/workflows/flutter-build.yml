@@ -84,67 +84,51 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   ios:
-    name: iOS Build (macos-14 - No Signing)
-    runs-on: macos-14
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Flutter (Stable)
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Disable Flutter Analytics
-        run: flutter config --no-analytics
-
-      - name: Print Xcode Version
-        run: xcodebuild -version
-
-      - name: Flutter Pub Get
-        run: flutter pub get
-
-      - name: Restore GoogleService-Info.plist (iOS)
-        run: |
-          mkdir -p ios/Runner
-          echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
-
-      # ✅ IMPORTANT FIX: Clean Pods to avoid old Swift / cached firebase build issues
-      - name: Clean iOS Pods (Fix Firebase Swift Errors)
-        run: |
-          rm -rf ios/Pods
-          rm -rf ios/Podfile.lock
-          rm -rf ios/.symlinks
-          rm -rf ios/Flutter/Flutter.framework
-          rm -rf ios/Flutter/Flutter.podspec
-
-      - name: Pod Install
-        run: |
-          cd ios
-          pod install --repo-update
-          cd ..
-
-      # ✅ REAL iOS DEVICE BUILD (no codesign)
-      - name: Build iOS (Release - No CodeSign)
-        run: flutter build ios --release --no-codesign
-
-      # ✅ Zip output only for tags
-      - name: Zip iOS Build Output
-        if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          cd build
-          zip -r ios-device-build.zip ios
-          ls -lh ios-device-build.zip
-
-      # ✅ Upload zip only for tags
-      - name: Upload iOS to GitHub Release (tags only)
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: "Release ${{ github.ref_name }}"
-          files: build/ios-device-build.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: iOS Build (macos-14 - No Signing)
+        runs-on: macos-14
+    
+        steps:
+          - name: Checkout Code
+            uses: actions/checkout@v4
+    
+          - name: Setup Flutter (Stable)
+            uses: subosito/flutter-action@v2
+            with:
+              channel: stable
+              cache: true
+    
+          - name: Disable Flutter Analytics
+            run: flutter config --no-analytics
+    
+          - name: Print Xcode Version
+            run: xcodebuild -version
+    
+          - name: Flutter Pub Get
+            run: flutter pub get
+    
+          - name: Restore GoogleService-Info.plist (iOS)
+            run: |
+              mkdir -p ios/Runner
+              echo '${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}' > ios/Runner/GoogleService-Info.plist
+    
+          # ✅ IMPORTANT: full clean (so CocoaPods rebuilds fresh)
+          - name: Flutter Clean
+            run: flutter clean
+    
+          - name: Clean iOS Pods
+            run: |
+              rm -rf ios/Pods
+              rm -rf ios/Podfile.lock
+              rm -rf ios/.symlinks
+              rm -rf ios/Flutter/Flutter.framework
+              rm -rf ios/Flutter/Flutter.podspec
+    
+          - name: Pod Install
+            run: |
+              cd ios
+              pod install --repo-update
+              cd ..
+    
+          - name: Build iOS (Release - No CodeSign)
+            run: flutter build ios --release --no-codesign
+    
