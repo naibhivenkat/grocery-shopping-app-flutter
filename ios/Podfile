@@ -25,14 +25,14 @@ require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelpe
 
 flutter_ios_podfile_setup
 
-# ✅ IMPORTANT: Firebase iOS SDK PIN (Swift 5 compatible)
-$FirebaseSDKVersion = '11.10.0'
+# ✅ FINAL FIX: Use Firebase iOS SDK version without Swift6 "sending"
+$FirebaseSDKVersion = '10.29.0'
 
 target 'Runner' do
   use_frameworks! :linkage => :static
   use_modular_headers!
 
-  # ✅ FORCE Firebase pods to use older iOS SDK (pre Swift-6 "sending" keyword)
+  # ✅ Pin Firebase pods (old stable version)
   pod 'Firebase/CoreOnly', $FirebaseSDKVersion
   pod 'Firebase/Firestore', $FirebaseSDKVersion
   pod 'Firebase/Messaging', $FirebaseSDKVersion
@@ -47,7 +47,7 @@ post_install do |installer|
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
 
-      # ✅ gRPC fixes (safe)
+      # ✅ gRPC fixes
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
       config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
     end
