@@ -5,8 +5,10 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/session_manager.dart';
 import 'language_selection_screen.dart';
-import 'login_screen.dart';
+
 import 'change_password_screen.dart';
+import 'role_grid_screen.dart';
+
 
 // Placeholders for screens not yet migrated
 class PlaceholderScreen extends StatelessWidget {
@@ -53,17 +55,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // --- LOGOUT LOGIC ---
-  Future<void> _handleLogout() async {
-    await SessionManager.logout();
-    if (!mounted) return;
-    
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  }
+// --- LOGOUT LOGIC ---
+Future<void> _handleLogout() async {
+  await SessionManager.logout();
+  if (!mounted) return;
+
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (ctx) => const RoleGridScreen()),
+    (route) => false,
+  );
+}
+
 
   // --- UPDATE CHECK LOGIC ---
   Future<void> _checkForUpdates() async {

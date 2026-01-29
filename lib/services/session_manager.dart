@@ -158,9 +158,25 @@ class SessionManager {
   }
 
   // --- LOGOUT ---
+  // static Future<void> logout() async {
+  //   (await _prefs).clear();
+  // }
   static Future<void> logout() async {
-    (await _prefs).clear();
-  }
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove("auth_token");
+  await prefs.remove("role");
+  await prefs.remove("username");
+  await prefs.remove("firebaseId");
+  await prefs.remove("shopkeeperId");
+  await prefs.remove("customerId");
+  await prefs.remove("shopId");
+  await prefs.remove("shopName");
+  await prefs.remove("hasItems");
+
+  // ✅ optional: clear all
+  await prefs.clear();
+}
+
 
   // --- LANGUAGE ---
   static const String keyLanguage = 'language_code';

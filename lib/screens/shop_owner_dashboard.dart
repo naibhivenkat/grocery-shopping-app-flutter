@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/session_manager.dart';
-import 'login_screen.dart';
+
 import 'create_shop_screen.dart';
 import 'add_items_screen.dart';
 import 'profile_screen.dart';
@@ -15,7 +15,7 @@ import 'shop_khata_list_screen.dart';
 import 'shop_owner_orders_screen.dart';
 import 'shop_owner_wallet_screen.dart';
 import 'manage_items_screen.dart';
-
+import 'role_grid_screen.dart';
 // Placeholder
 class PlaceholderScreen extends StatelessWidget {
   final String title;
@@ -205,15 +205,15 @@ class _ShopOwnerDashboardScreenState extends State<ShopOwnerDashboardScreen> {
   }
 
   Future<void> _forceLogout() async {
-    await SessionManager.logout();
-    if (!mounted) return;
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  }
+await SessionManager.logout();
+  if (!mounted) return;
 
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (ctx) => const RoleGridScreen()),
+    (route) => false,
+  );
+}
   // --- UI: DASHBOARD ---
   @override
   Widget build(BuildContext context) {

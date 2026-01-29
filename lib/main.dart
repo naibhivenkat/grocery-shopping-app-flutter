@@ -11,13 +11,14 @@ import 'screens/customer_home_screen.dart';
 import 'screens/shop_owner_dashboard.dart';
 import 'screens/shop_selection_screen.dart';
 
+// ✅ NEW GRID ROLE SCREEN
+import 'screens/role_grid_screen.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Default language fallback
   String langCode = "en";
 
-  // ✅ Firebase Init (safe)
   try {
     await Firebase.initializeApp();
     debugPrint("✅ Firebase initialized successfully");
@@ -25,7 +26,6 @@ Future<void> main() async {
     debugPrint("❌ Firebase init failed: $e");
   }
 
-  // ✅ Notification Init (safe)
   try {
     await NotificationService.initialize();
     debugPrint("✅ NotificationService initialized successfully");
@@ -33,7 +33,6 @@ Future<void> main() async {
     debugPrint("❌ Notification init failed: $e");
   }
 
-  // ✅ Load language safely
   try {
     langCode = await SessionManager.getLanguage();
     if (langCode.isEmpty) langCode = "en";
@@ -50,7 +49,6 @@ class MyApp extends StatefulWidget {
   final Locale savedLocale;
   const MyApp({super.key, required this.savedLocale});
 
-  // ✅ Call this anywhere to update app language instantly
   static void setLocale(BuildContext context, Locale newLocale) {
     final _MyAppState? state = context.findAncestorStateOfType<_MyAppState>();
     state?.changeLocale(newLocale);
@@ -80,22 +78,17 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Grocery App',
-
-      // ✅ This applies the language
       locale: _locale,
-
       supportedLocales: const [
         Locale("en"),
         Locale("kn"),
         Locale("hi"),
       ],
-
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
@@ -106,6 +99,10 @@ class _MyAppState extends State<MyApp> {
 
       routes: {
         '/login': (context) => const LoginScreen(),
+
+        // ✅ NEW (4 grid buttons screen)
+        '/role_select': (context) => const RoleGridScreen(),
+
         '/customer_home': (context) => const CustomerHomeScreen(),
         '/shop_owner_home': (context) => const ShopOwnerDashboardScreen(),
         '/shop_selection': (context) => const ShopSelectionScreen(),
@@ -113,4 +110,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-

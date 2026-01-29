@@ -10,7 +10,8 @@ import 'shop_owner_dashboard.dart';
 import 'customer_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String defaultRole; // ✅ customer or shopowner
+  const LoginScreen({super.key, this.defaultRole = "customer"});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -23,10 +24,17 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   String _errorMessage = "";
 
-  String _selectedRole = "customer";
+  // ✅ only grocery roles here
+  late String _selectedRole;
 
   final String baseUrl =
       "https://grocery-backend-956424262985.asia-south1.run.app";
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedRole = widget.defaultRole;
+  }
 
   Future<void> _handleLogin() async {
     String username = _usernameController.text.trim();
@@ -55,25 +63,25 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = jsonDecode(response.body);
 
       if (response.statusCode == 200 && data['success'] == true) {
-        final user = data['user'];
+        final user = data['user'] ?? {};
         final String serverRole = (user['role'] ?? "").toLowerCase().trim();
 
-        // Role mismatch check
+        // ✅ Role mismatch check
         if (serverRole != _selectedRole) {
           setState(() => _errorMessage =
-              "This account is a $serverRole. Please switch the tab above.");
+              "This account is a $serverRole. Please login using correct role.");
           return;
         }
 
-        // ✅ 1) Save Token
+        // ✅ Save token
         if (data['token'] != null) {
           await SessionManager.setAuthToken(data['token']);
         }
 
-        // ✅ 2) Save Basic Login
+        // ✅ Save login
         await SessionManager.saveLogin(user['username'] ?? "", serverRole);
 
-        // ✅ 3) Save FULL PROFILE (THIS FIXES PHOTO NOT SHOWING AFTER RELOGIN)
+        // ✅ Save profile
         await SessionManager.saveUserProfileFull(
           fullName: user['fullName'] ?? user['full_name'] ?? "",
           email: user['email'] ?? "",
@@ -84,7 +92,7 @@ class _LoginScreenState extends State<LoginScreen> {
           photoBase64: user['photoBase64'] ?? user['photo_base64'] ?? "",
         );
 
-        // ✅ 4) Save Role IDs
+        // ✅ Save IDs
         if (user['shopkeeperId'] != null) {
           await SessionManager.setShopkeeperId(user['shopkeeperId'].toString());
         }
@@ -95,12 +103,11 @@ class _LoginScreenState extends State<LoginScreen> {
           await SessionManager.setFirebaseId(user['firebaseId'].toString());
         }
 
-        // ✅ 5) Save Shop Info
+        // ✅ Shop info
         if (user['shop'] != null) {
           final shopData = user['shop'];
           final String? shopId = shopData['id'];
           final String? shopName = shopData['name'];
-
           if (shopId != null) {
             await SessionManager.setShopInfo(shopId, shopName ?? "My Shop");
             bool hasItems = user['hasItems'] ?? true;
@@ -108,21 +115,25 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         }
 
-        // ✅ 6) Register FCM Token
+        // ✅ Register FCM token
         await NotificationService.checkAndUploadToken();
 
         if (!mounted) return;
 
-        // ✅ 7) Navigate
+        // ✅ Navigate
         if (serverRole == 'shopowner' || serverRole == 'shopkeeper') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const ShopOwnerDashboardScreen()),
+            MaterialPageRoute(
+              builder: (ctx) => const ShopOwnerDashboardScreen(),
+            ),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => const CustomerHomeScreen()),
+            MaterialPageRoute(
+              builder: (ctx) => const CustomerHomeScreen(),
+            ),
           );
         }
       } else {
@@ -137,19 +148,26 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final title = _selectedRole == "shopowner" ? "Shop Owner Login" : "Customer Login";
+
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Center(
                 child: Container(
-                  height: 180,
-                  width: 180,
+                  height: 150,
+                  width: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
@@ -172,31 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
-              const Text(
-                "Welcome Back",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87),
-              ),
-              const SizedBox(height: 30),
-
-              // ROLE TOGGLE
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildRoleButton("Customer", "customer")),
-                    Expanded(child: _buildRoleButton("Shop Owner", "shopowner")),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 24),
 
               TextField(
                 controller: _usernameController,
@@ -236,12 +230,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   : ElevatedButton(
                       onPressed: _handleLogin,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _selectedRole == 'shopowner'
-                            ? Colors.blueAccent
-                            : Colors.green,
+                        backgroundColor:
+                            _selectedRole == "shopowner" ? Colors.blueAccent : Colors.green,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       child: Text(
                         "LOGIN AS ${_selectedRole.toUpperCase()}",
@@ -253,46 +247,51 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
 
               Align(
                 alignment: Alignment.center,
                 child: TextButton(
                   onPressed: () {
                     Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const ForgotPasswordScreen()));
+                      context,
+                      MaterialPageRoute(
+                        builder: (ctx) => const ForgotPasswordScreen(),
+                      ),
+                    );
                   },
                   child: const Text(
                     "Forgot Password?",
                     style: TextStyle(
-                        color: Color.fromARGB(255, 70, 58, 247), fontSize: 16),
+                      color: Color.fromARGB(255, 70, 58, 247),
+                      fontSize: 16,
+                    ),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 8),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
                     "Don't have an account?",
-                    style: TextStyle(
-                        color: Color.fromARGB(135, 5, 5, 5), fontSize: 16),
+                    style: TextStyle(color: Colors.black54, fontSize: 16),
                   ),
                   TextButton(
                     onPressed: () {
                       Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const RegisterScreen()));
+                        context,
+                        MaterialPageRoute(
+                          builder: (ctx) => const RegisterScreen(),
+                        ),
+                      );
                     },
                     child: Text(
                       "Register Now",
                       style: TextStyle(
-                        color: _selectedRole == 'shopowner'
+                        color: _selectedRole == "shopowner"
                             ? Colors.blueAccent
                             : Colors.green,
                         fontWeight: FontWeight.bold,
@@ -303,36 +302,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ],
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleButton(String title, String roleValue) {
-    bool isSelected = _selectedRole == roleValue;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedRole = roleValue;
-          _errorMessage = "";
-        });
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: isSelected
-              ? [const BoxShadow(color: Colors.black12, blurRadius: 4)]
-              : [],
-        ),
-        child: Text(
-          title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: isSelected ? Colors.black : Colors.grey,
           ),
         ),
       ),

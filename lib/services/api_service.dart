@@ -874,6 +874,99 @@ static Future<bool> verifyExtraPayment({
   }
 }
 
+  // ==========================================
+  // ✅ REGISTER FLOW (OTP) - SAME AS KOTLIN
+  // @POST("send_otp")
+  // @POST("verify_otp")
+  // @POST("register_after_otp")
+  // ==========================================
+
+  /// ✅ Step 1: Send OTP to email
+  /// Kotlin: @POST("send_otp")
+  static Future<Map<String, dynamic>> sendOtp(Map<String, String> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/send_otp'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        return {
+          "success": false,
+          "message": data["message"] ?? "Failed to send OTP",
+        };
+      }
+    } catch (e) {
+      return {"success": false, "message": "Network Error: $e"};
+    }
+  }
+
+  /// ✅ Step 2: Verify OTP
+  /// Kotlin: @POST("verify_otp")
+  static Future<Map<String, dynamic>> verifyOtp(Map<String, String> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/verify_otp'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        return {
+          "success": false,
+          "message": data["message"] ?? "OTP verification failed",
+        };
+      }
+    } catch (e) {
+      return {"success": false, "message": "Network Error: $e"};
+    }
+  }
+
+  /// ✅ Step 3: Register after OTP verification
+  /// Kotlin: @POST("register_after_otp")
+  static Future<Map<String, dynamic>> registerAfterOtp(Map<String, String> body) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/register_after_otp'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode(body),
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        return {
+          "success": false,
+          "message": data["message"] ?? "Registration failed",
+        };
+      }
+    } catch (e) {
+      return {"success": false, "message": "Network Error: $e"};
+    }
+  }
+
+static Map<String, dynamic> _decode(http.Response resp) {
+  try {
+    return jsonDecode(resp.body) as Map<String, dynamic>;
+  } catch (e) {
+    return {
+      "success": false,
+      "message":
+          "Failed to decode JSON. Status=${resp.statusCode}\n${resp.body}",
+    };
+  }
+}
 
   
   }

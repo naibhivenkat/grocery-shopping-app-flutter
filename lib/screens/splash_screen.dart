@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'login_screen.dart';
-import 'shop_owner_dashboard.dart'; 
-import 'customer_home_screen.dart'; // ✅ 1. UNCOMMENTED THIS
+
+import 'customer_home_screen.dart';
+import 'shop_owner_dashboard.dart';
+
+// ✅ NEW GRID ROLE SCREEN
+import 'role_grid_screen.dart';
+
+// ✅ Service Login Screen
+import '../service_module/provider/screens/service_login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,10 +19,6 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  // CONFIGURATION: 
-  // You can change this to "customer" if you want the text to say "Welcome to Customer App"
-  final String appRole = "shopowner"; 
-
   @override
   void initState() {
     super.initState();
@@ -24,52 +26,71 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkLoginAndNavigate() async {
-    // 1. Wait 2 seconds
+    // ✅ splash delay
     await Future.delayed(const Duration(seconds: 2));
 
-    // 2. Check Session
     final prefs = await SharedPreferences.getInstance();
     final String? token = prefs.getString('auth_token');
     final String? role = prefs.getString('role');
 
     if (!mounted) return;
 
-    // 3. Navigate
-    if (token != null && token.isNotEmpty) {
-      if (role == 'shopowner') {
-        // GO TO SHOP DASHBOARD
+    // ✅ Logged in
+    if (token != null && token.isNotEmpty && role != null && role.isNotEmpty) {
+      if (role == 'shopowner' || role == 'shopkeeper') {
         Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (_) => const ShopOwnerDashboardScreen())
+          context,
+          MaterialPageRoute(
+            builder: (ctx) => const ShopOwnerDashboardScreen(),
+          ),
         );
-      } else if (role == 'customer') {
-        // ✅ 2. ENABLED CUSTOMER NAVIGATION
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (_) => const CustomerHomeScreen())
-        );
-      } else {
-        // Unknown role -> Login
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (_) => const LoginScreen())
-        );
+        return;
       }
-    } else {
-      // Not logged in -> Login
+
+      if (role == 'customer') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (ctx) => const CustomerHomeScreen(),
+          ),
+        );
+        return;
+      }
+
+      // ✅ Service module role
+      if (role == 'services') {
+        // ✅ For now: open service login screen
+        // Later you can auto-direct to ProviderHomeDashboard if you store providerId locally.
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (ctx) => const ServiceLoginScreen(),
+          ),
+        );
+        return;
+      }
+
+      // unknown role -> role selection
       Navigator.pushReplacement(
-        context, 
-        MaterialPageRoute(builder: (_) => const LoginScreen())
+        context,
+        MaterialPageRoute(
+          builder: (ctx) => const RoleGridScreen(),
+        ),
       );
+      return;
     }
+
+    // ✅ Not logged in -> Role grid
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => const RoleGridScreen(),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    String welcomeText = "Welcome to Grocery App";
-    if (appRole == "customer") welcomeText = "Welcome to Customer App";
-    if (appRole == "shopowner") welcomeText = "Welcome to Shop Owner App";
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
@@ -78,16 +99,16 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             const Icon(Icons.store, size: 80, color: Colors.green),
             const SizedBox(height: 20),
-            Text(
-              welcomeText,
-              style: const TextStyle(
+            const Text(
+              "Welcome to Grocery App",
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
             const SizedBox(height: 20),
-            const CircularProgressIndicator()
+            const CircularProgressIndicator(),
           ],
         ),
       ),
