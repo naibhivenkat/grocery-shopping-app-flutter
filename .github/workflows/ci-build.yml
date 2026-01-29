@@ -2,9 +2,10 @@ name: CI Build (Android + iOS Artifacts)
 
 on:
   push:
-    branches: ["flutter-dev", "main", "master"]
+   # branches: ["flutter-dev", "main", "master"]
+   branches: "**"
   pull_request:
-    branches: ["flutter-dev", "main", "master"]
+    branches: "**"
   workflow_dispatch:
 
 permissions:
