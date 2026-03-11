@@ -17,9 +17,20 @@ class OrderManager {
     required Function(String message) onError,
   }) async {
 
-    final itemsPayload = cartItems.map((c) => {
-      "item_id": c.item.id,
-      "quantity": c.quantity,
+    // 🔥 FIX: Normalize grams → kg before sending to backend
+    final itemsPayload = cartItems.map((c) {
+      double normalizedQty = c.quantity;
+
+      // Convert grams to kg
+      if (c.unit.toLowerCase() == "grams") {
+        normalizedQty = c.quantity / 1000; // 250g → 0.25 kg
+      }
+
+      return {
+        "item_id": c.item.id,
+        "quantity": normalizedQty,
+        "unit": c.unit, // important for shopowner display + invoice
+      };
     }).toList();
 
     final Map<String, dynamic> orderData = {
@@ -27,8 +38,8 @@ class OrderManager {
       "payment_method": paymentMethod,
       "items": itemsPayload,
 
-      // 🔐 REQUIRED (matches Kotlin)
-      "transaction_id": transactionId, // empty string is OK
+      // 🔐 REQUIRED (matches Kotlin backend structure)
+      "transaction_id": transactionId,
 
       "pay_now": payNowAmount,
       "due_amount": dueAmount,
@@ -44,7 +55,7 @@ class OrderManager {
 
       onSuccess(
         data['order_id'],
-        data['razorpay_order_id'], // MUST exist for Razorpay
+        data['razorpay_order_id'], // required for Razorpay flow
         paymentMethod,
       );
     } else {

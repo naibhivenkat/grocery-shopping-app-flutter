@@ -198,5 +198,57 @@ class SessionManager {
   static Future<void> markOrderRated(String orderId) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('rated_$orderId', true);
+
   }
+static const String keyServiceRequesterId = 'service_requester_id';
+static const String keyServiceUserId = 'service_user_id';
+
+// requester (if needed separately later)
+static Future<void> setServiceRequesterId(String id) async =>
+    (await _prefs).setString(keyServiceRequesterId, id);
+
+static Future<String?> getServiceRequesterId() async =>
+    (await _prefs).getString(keyServiceRequesterId);
+
+
+// MAIN SERVICE USER LOGIN (THIS IS USED NOW)
+static Future<void> setServiceUserId(String id) async =>
+    (await _prefs).setString(keyServiceUserId, id);
+
+static Future<String?> getServiceUserId() async =>
+    (await _prefs).getString(keyServiceUserId);
+
+
+// ⭐ USER GPS LOCATION (for service discovery)
+static const String keyUserLat = 'user_lat';
+static const String keyUserLng = 'user_lng';
+
+
+// ================================
+// 📍 USER LOCATION HELPERS
+// ================================
+
+static Future<void> setUserLocation(double lat, double lng) async {
+  final prefs = await _prefs;
+  await prefs.setDouble(keyUserLat, lat);
+  await prefs.setDouble(keyUserLng, lng);
+}
+
+static Future<double?> getUserLat() async {
+  final prefs = await _prefs;
+  return prefs.getDouble(keyUserLat);
+}
+
+static Future<double?> getUserLng() async {
+  final prefs = await _prefs;
+  return prefs.getDouble(keyUserLng);
+}
+
+static Future<void> clearUserLocation() async {
+  final prefs = await _prefs;
+  await prefs.remove(keyUserLat);
+  await prefs.remove(keyUserLng);
+}
+
+
 }

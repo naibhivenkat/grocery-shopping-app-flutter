@@ -56,7 +56,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       await ServiceApi.verifyOtp(
         email: _email.text.trim(),
         otp: _otp.text.trim(),
-      ); // ✅ no purpose
+      ); 
 
       setState(() => _otpVerified = true);
       UIHelpers.showSnack(context, "OTP verified ✅");

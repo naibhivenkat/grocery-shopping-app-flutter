@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/item_model.dart';
 import '../services/api_service.dart';
 import '../services/cart_manager.dart';
-import 'cart_screen.dart'; // ✅ Import the Cart Screen
+import 'cart_screen.dart'; 
 
 class ShopItemsScreen extends StatefulWidget {
   const ShopItemsScreen({super.key});

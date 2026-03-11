@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'login_screen.dart';
-import 'shop_selection_screen.dart'; // ✅ 1. IMPORT THE REAL SCREEN
+import 'shop_selection_screen.dart'; 
 
 // --- PLACEHOLDERS (Keep these for now, but DELETE ShopSelectionScreen placeholder) ---
 

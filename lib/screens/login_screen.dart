@@ -1,3 +1,4 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -10,7 +11,7 @@ import 'shop_owner_dashboard.dart';
 import 'customer_home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  final String defaultRole; // ✅ customer or shopowner
+  final String defaultRole;
   const LoginScreen({super.key, this.defaultRole = "customer"});
 
   @override
@@ -80,6 +81,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // ✅ Save login
         await SessionManager.saveLogin(user['username'] ?? "", serverRole);
+        await SessionManager.setServiceUserId(user["uid"]);
+        await NotificationService.checkAndUploadToken();
+        String? token = await FirebaseMessaging.instance.getToken();
+        print("🔥 DEVICE FCM TOKEN = $token");
+
 
         // ✅ Save profile
         await SessionManager.saveUserProfileFull(

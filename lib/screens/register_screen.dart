@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:pinput/pinput.dart'; // Ensure you ran 'flutter pub add pinput'
+import 'package:pinput/pinput.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'customer_home_screen.dart'; // Placeholder import
-import 'shop_owner_dashboard.dart'; // Placeholder import
+
+import '../services/session_manager.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -15,29 +15,25 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // CONFIG
-  final String baseUrl = "https://grocery-backend-956424262985.asia-south1.run.app/"; // Android Emulator
-  // final String baseUrl = "http://127.0.0.1:5000"; // iOS Simulator
 
-  // UI STATE
-  int _currentStep = 0; // 0 = Form, 1 = OTP
+  final String baseUrl =
+      "https://grocery-backend-956424262985.asia-south1.run.app/";
+
+  int _currentStep = 0;
   bool _isLoading = false;
   String? _errorMessage;
-  
-  // FORM CONTROLLERS
+
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  String _selectedRole = "customer"; // Default role
+  String _selectedRole = "customer";
 
-  // OTP STATE
   final _otpController = TextEditingController();
   Timer? _timer;
-  int _start = 120; // 2 minutes
-  final int _resendAttempts = 0;
+  int _start = 120;
 
   @override
   void dispose() {
@@ -45,11 +41,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // --- LOGIC: SEND OTP ---
+  // ───────────────── SEND OTP ─────────────────
   Future<void> _sendOtp() async {
-    // 1. Validate Form
-    if (_nameController.text.isEmpty || _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty || _usernameController.text.isEmpty ||
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
+        _usernameController.text.isEmpty ||
         _passwordController.text.isEmpty) {
       setState(() => _errorMessage = "Please fill all fields");
       return;
@@ -65,35 +62,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _errorMessage = null;
     });
 
-    // 2. API Call
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/send_otp'), // Update with your actual endpoint
+        Uri.parse('$baseUrl/send_otp'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({"email": _emailController.text.trim()}),
       );
 
       if (response.statusCode == 200) {
         setState(() {
-          _currentStep = 1; // Move to OTP view
-          _start = 120; // Reset timer
+          _currentStep = 1;
+          _start = 120;
           _startTimer();
         });
       } else {
-        setState(() => _errorMessage = "Failed to send OTP: ${response.body}");
+        setState(() => _errorMessage = "Failed to send OTP");
       }
     } catch (e) {
-      setState(() => _errorMessage = "Connection Error: $e");
-    } finally {
-      setState(() => _isLoading = false);
+      setState(() => _errorMessage = "Connection error");
     }
+
+    setState(() => _isLoading = false);
   }
 
-  // --- LOGIC: VERIFY OTP & REGISTER ---
+  // ───────────────── VERIFY OTP ─────────────────
   Future<void> _verifyOtpAndRegister() async {
     final otp = _otpController.text.trim();
+
     if (otp.length != 6) {
-      setState(() => _errorMessage = "Please enter a 6-digit OTP");
+      setState(() => _errorMessage = "Enter valid OTP");
       return;
     }
 
@@ -103,7 +100,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      // 1. Verify OTP
       final verifyResp = await http.post(
         Uri.parse('$baseUrl/verify_otp'),
         headers: {"Content-Type": "application/json"},
@@ -114,21 +110,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       final verifyData = jsonDecode(verifyResp.body);
-      
+
       if (verifyResp.statusCode == 200 && verifyData['status'] == 'success') {
-        // 2. Final Registration
         await _finalRegistration();
-      } else {
-        setState(() => _errorMessage = "Invalid OTP");
+        return;
       }
+
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Invalid OTP";
+      });
+
     } catch (e) {
-      setState(() => _errorMessage = "Error: $e");
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _errorMessage = "Verification error";
+      });
     }
   }
 
+  // ───────────────── FINAL REGISTRATION ─────────────────
   Future<void> _finalRegistration() async {
+
     final body = {
       "full_name": _nameController.text.trim(),
       "username": _usernameController.text.trim(),
@@ -144,56 +147,79 @@ class _RegisterScreenState extends State<RegisterScreen> {
       body: jsonEncode(body),
     );
 
+    print("REGISTER STATUS: ${regResp.statusCode}");
+    print("REGISTER BODY: ${regResp.body}");
+
     final regData = jsonDecode(regResp.body);
 
-    if (regResp.statusCode == 200 && regData['success'] == true) {
-      // SAVE DATA (Session)
+    // 🔥 ACCEPT 200 + 201
+    if ((regResp.statusCode == 200 || regResp.statusCode == 201)
+        && regData['success'] == true) {
+
       await _saveSessionData(regData);
-      
-      // NAVIGATE
+
+      final user = regData['user'];
+      final role = user['role'];
+
       if (!mounted) return;
-      if (_selectedRole == "customer") {
-        // Navigate to Customer Home
-        Navigator.pushReplacementNamed(context, '/customer_home');
-      } else {
-        // Navigate to Shop Owner Home
+
+      
+      if (role == 'shopowner' || role == 'shopkeeper') {
+
+        // 🔥 ALWAYS go to dashboard first
         Navigator.pushReplacementNamed(context, '/shop_owner_home');
+
+      } else {
+
+        Navigator.pushReplacementNamed(context, '/customer_home');
+
       }
-    } else {
-      setState(() => _errorMessage = "Registration Failed: ${regData['message']}");
+
+
+      return;
     }
+
+    setState(() {
+      _isLoading = false;
+      _errorMessage = "Registration failed";
+    });
   }
 
-  Future<void> _saveSessionData(Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    final user = data['user'];
-    
-    if (data['token'] != null) await prefs.setString('auth_token', data['token']);
-    if (user['username'] != null) await prefs.setString('username', user['username']);
-    if (user['role'] != null) await prefs.setString('role', user['role']);
-    
-    // Save IDs based on role
-    if (user['customerId'] != null) await prefs.setString('customerId', user['customerId']);
-    if (user['shopkeeperId'] != null) await prefs.setString('shopkeeperId', user['shopkeeperId']);
+  // ───────────────── SAVE SESSION ─────────────────
+Future<void> _saveSessionData(Map<String, dynamic> data) async {
+  final user = data['user'];
+  final token = data['token'];
+
+  // 🔐 use SAME storage as login flow
+  await SessionManager.saveLogin(
+    user['username'] ?? "",
+    user['role'] ?? "",
+  );
+
+  await SessionManager.setAuthToken(token ?? "");
+
+  if (user['shopkeeperId'] != null) {
+    await SessionManager.setShopkeeperId(user['shopkeeperId']);
   }
 
-  // --- UTILS: TIMER ---
+  if (user['customerId'] != null) {
+    await SessionManager.setCustomerId(user['customerId']);
+  }
+}
+
+  // ───────────────── TIMER ─────────────────
   void _startTimer() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_start == 0) {
-        setState(() {
-          timer.cancel();
-        });
+        timer.cancel();
       } else {
-        setState(() {
-          _start--;
-        });
+        setState(() => _start--);
       }
     });
   }
 
-  // --- UI: BUILDER ---
+  // ───────────────── UI ─────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -211,15 +237,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_errorMessage != null) 
+        if (_errorMessage != null)
           Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-        
+
         TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Full Name")),
         TextField(controller: _emailController, decoration: const InputDecoration(labelText: "Email")),
         TextField(controller: _phoneController, decoration: const InputDecoration(labelText: "Phone")),
         TextField(controller: _usernameController, decoration: const InputDecoration(labelText: "Username")),
-        
-        // Role Dropdown
+
         DropdownButtonFormField<String>(
           initialValue: _selectedRole,
           items: const [
@@ -229,14 +254,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
           onChanged: (val) => setState(() => _selectedRole = val!),
           decoration: const InputDecoration(labelText: "I am a..."),
         ),
-        
+
         TextField(controller: _passwordController, obscureText: true, decoration: const InputDecoration(labelText: "Password")),
         TextField(controller: _confirmPasswordController, obscureText: true, decoration: const InputDecoration(labelText: "Confirm Password")),
-        
+
         const SizedBox(height: 20),
+
         ElevatedButton(
           onPressed: _isLoading ? null : _sendOtp,
-          child: _isLoading ? const CircularProgressIndicator() : const Text("Send OTP"),
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text("Send OTP"),
         ),
       ],
     );
@@ -245,38 +273,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildOtpView() {
     return Column(
       children: [
-        const Text("Enter the code sent to your email", style: TextStyle(fontSize: 16)),
+        const Text("Enter OTP sent to your email"),
         const SizedBox(height: 20),
-        
-        // OTP BOXES (Requires 'pinput' package)
-        Pinput(
-          length: 6,
-          controller: _otpController,
-          defaultPinTheme: PinTheme(
-            width: 50, height: 50,
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.green),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-        
-        const SizedBox(height: 20),
-        Text("Time remaining: ${_start ~/ 60}:${(_start % 60).toString().padLeft(2, '0')}"),
-        
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: _isLoading || _start == 0 ? null : _verifyOtpAndRegister,
-          child: _isLoading ? const CircularProgressIndicator() : const Text("Verify & Register"),
-        ),
 
-        TextButton(
-          onPressed: _start == 0 && _resendAttempts < 3 ? () {
-             // Add resend logic here
-          } : null, 
-          child: const Text("Resend OTP"),
+        Pinput(length: 6, controller: _otpController),
+
+        const SizedBox(height: 20),
+
+        Text("Time remaining: ${_start ~/ 60}:${(_start % 60).toString().padLeft(2, '0')}"),
+
+        const SizedBox(height: 20),
+
+        ElevatedButton(
+          onPressed: _isLoading ? null : _verifyOtpAndRegister,
+          child: _isLoading
+              ? const CircularProgressIndicator()
+              : const Text("Verify & Register"),
         ),
       ],
     );
   }
 }
+

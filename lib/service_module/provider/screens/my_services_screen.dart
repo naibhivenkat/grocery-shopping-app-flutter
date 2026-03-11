@@ -91,10 +91,33 @@ class _MyServicesScreenState extends State<MyServicesScreen>
     if (d == null) return false;
     if (d["closed"] == true) return false;
 
-    TimeOfDay parse(String t) {
-      final p = t.split(":");
-      return TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+TimeOfDay parse(String t) {
+  try {
+    t = t.trim().toUpperCase();
+
+    // Case 1: 09:30 AM / 9:30 PM
+    if (t.contains("AM") || t.contains("PM")) {
+      final parts = t.split(" ");
+      final hm = parts[0].split(":");
+
+      int hour = int.parse(hm[0]);
+      int minute = int.parse(hm[1]);
+      final isPM = parts[1] == "PM";
+
+      if (isPM && hour != 12) hour += 12;
+      if (!isPM && hour == 12) hour = 0;
+
+      return TimeOfDay(hour: hour, minute: minute);
     }
+
+    // Case 2: 24hr → 09:30
+    final p = t.split(":");
+    return TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+  } catch (e) {
+    return TimeOfDay(hour: 0, minute: 0);
+  }
+}
+
 
     final from = d["from"];
     final to = d["to"];
@@ -163,8 +186,9 @@ if (lunchFrom is String &&
   // =======================
   // PER-DAY SCHEDULE EDITOR (PRO)
   // =======================
-  Widget _workingScheduleEditor({
-    required Map<String, Map<String, String>> schedule,
+ Widget _workingScheduleEditor({
+  required Map<String, Map<String, dynamic>> schedule,
+
     required void Function(void Function()) setState,
   }) {
     
@@ -209,7 +233,7 @@ if (lunchFrom is String &&
                             schedule[d] = {
                               "from": bulkFrom!.format(context),
                               "to": bulkTo!.format(context),
-                             "closed": "false",
+                             "closed": false,
 
                             };
                           }
@@ -235,7 +259,8 @@ if (lunchFrom is String &&
                 onChanged: (v) {
                   setState(() {
                     schedule[day] = {
-                      "closed": v == true ? "true" : "false",
+                      "closed": v == true,
+
                     };
                   });
                 },
@@ -246,60 +271,59 @@ if (lunchFrom is String &&
                 ],
               ),
               if (!closed)
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () async {
-                        final t = await _pickTime(context);
-                        if (t != null) {
-                          setState(() {
-                            schedule[day] ??= {};
-                            schedule[day]!["from"] =
-                                t.format(context);
-                          });
-                        }
-                      },
-                      child: Text(d["from"] ?? "From"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final t = await _pickTime(context);
-                        if (t != null) {
-                          setState(() {
-                            schedule[day] ??= {};
-                            schedule[day]!["to"] =
-                                t.format(context);
-                          });
-                        }
-                      },
-                      child: Text(d["to"] ?? "To"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final t = await _pickTime(context);
-                        if (t != null) {
-                          setState(() {
-                            schedule[day]!["lunch_from"] =
-                                t.format(context);
-                          });
-                        }
-                      },
-                      child: const Text("Lunch from"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        final t = await _pickTime(context);
-                        if (t != null) {
-                          setState(() {
-                            schedule[day]!["lunch_to"] =
-                                t.format(context);
-                          });
-                        }
-                      },
-                      child: const Text("Lunch to"),
-                    ),
-                  ],
-                ),
+                Wrap(
+  spacing: 8,
+  runSpacing: 4,
+  children: [
+    TextButton(
+      onPressed: () async {
+        final t = await _pickTime(context);
+        if (t != null) {
+          setState(() {
+            schedule[day] ??= {};
+            schedule[day]!["from"] = t.format(context);
+          });
+        }
+      },
+      child: Text(d["from"] ?? "From"),
+    ),
+    TextButton(
+      onPressed: () async {
+        final t = await _pickTime(context);
+        if (t != null) {
+          setState(() {
+            schedule[day] ??= {};
+            schedule[day]!["to"] = t.format(context);
+          });
+        }
+      },
+      child: Text(d["to"] ?? "To"),
+    ),
+    TextButton(
+      onPressed: () async {
+        final t = await _pickTime(context);
+        if (t != null) {
+          setState(() {
+            schedule[day]!["lunch_from"] = t.format(context);
+          });
+        }
+      },
+      child: const Text("Lunch from"),
+    ),
+    TextButton(
+      onPressed: () async {
+        final t = await _pickTime(context);
+        if (t != null) {
+          setState(() {
+            schedule[day]!["lunch_to"] = t.format(context);
+          });
+        }
+      },
+      child: const Text("Lunch to"),
+    ),
+  ],
+),
+
               const Divider(),
             ],
           );
@@ -317,7 +341,9 @@ if (lunchFrom is String &&
     final search = TextEditingController();
 
     String pricingUnit = "fixed";
-    Map<String, Map<String, String>> workingSchedule = {};
+    //Map<String, Map<String, String>> workingSchedule = {};
+    Map<String, Map<String, dynamic>> workingSchedule = {};
+
 
     await showDialog(
       context: context,
@@ -394,12 +420,9 @@ if (lunchFrom is String &&
                       decoration:
                           const InputDecoration(labelText: "Pricing"),
                       items: const [
-                        DropdownMenuItem(
-                            value: "fixed", child: Text("Fixed")),
-                        DropdownMenuItem(
-                            value: "per_hour", child: Text("Per Hour")),
-                        DropdownMenuItem(
-                            value: "per_day", child: Text("Per Day")),
+                    DropdownMenuItem(value: "fixed", child: Text("Fixed")),
+                    DropdownMenuItem(value: "per_hour", child: Text("Hourly")),
+
                       ],
                       onChanged: (v) =>
                           pricingUnit = v ?? pricingUnit,
@@ -425,17 +448,25 @@ if (lunchFrom is String &&
                   onPressed: selected == null
                       ? null
                       : () async {
-                          await ServiceApi.addOrUpdateService({
-                            "provider_id": widget.providerId,
-                            "service_category_id": selected!.id,
-                            "title": selected!.name,
-                            "fixed_price":
-                                double.tryParse(price.text) ?? 0,
-                            "min_price":
-                                double.tryParse(minPrice.text),
-                            "pricing_unit": pricingUnit,
-                            "working_schedule": workingSchedule,
-                          });
+                     await ServiceApi.addOrUpdateService({
+                        "provider_id": widget.providerId,
+                        "service_category_id": selected!.id,
+                        "title": selected!.name,
+
+                        // ⭐ NEW PRICING STRUCTURE
+                        "pricing_unit": pricingUnit,
+                        "pricing_type": pricingUnit == "per_hour" ? "hourly" : "fixed",
+                        "fixed_price": pricingUnit == "fixed"
+                            ? double.tryParse(price.text) ?? 0
+                            : null,
+                        "hourly_price": pricingUnit == "per_hour"
+                            ? double.tryParse(price.text)
+                            : null,
+
+                        "minimum_charge": double.tryParse(minPrice.text),
+                        "working_schedule": workingSchedule,
+                      });
+
                           Navigator.pop(dialogCtx);
                           _load();
                         },
@@ -455,10 +486,13 @@ if (lunchFrom is String &&
   Future<void> _editPricing(dynamic s) async {
     final price =
         TextEditingController(text: "${s["fixed_price"] ?? 0}");
-    final minPrice =
-        TextEditingController(text: "${s["min_price"] ?? ""}");
+   final minPrice =
+    TextEditingController(text: "${s["minimum_charge"] ?? ""}");
 
-    Map<String, Map<String, String>> workingSchedule = {};
+
+    //Map<String, Map<String, String>> workingSchedule = {};
+    Map<String, Map<String, dynamic>> workingSchedule = {};
+
     final raw = s["working_schedule"];
     if (raw is Map) {
       raw.forEach((day, times) {
@@ -468,7 +502,8 @@ if (lunchFrom is String &&
   "to": times["to"]?.toString() ?? "",
   "lunch_from": times["lunch_from"]?.toString() ?? "",
   "lunch_to": times["lunch_to"]?.toString() ?? "",
-  "closed": times["closed"]?.toString() ?? "false",
+"closed": times["closed"] == true,
+
 
 
           };
@@ -516,17 +551,19 @@ if (lunchFrom is String &&
                   child: const Text("Cancel")),
               ElevatedButton(
                 onPressed: () async {
-                  await ServiceApi.addOrUpdateService({
-                    "id": s["id"],
-                    "provider_id": widget.providerId,
-                    "service_category_id": s["service_category_id"],
-                    "title": s["title"],
-                    "fixed_price":
-                        double.tryParse(price.text) ?? 0,
-                    "min_price":
-                        double.tryParse(minPrice.text),
-                    "working_schedule": workingSchedule,
-                  });
+          await ServiceApi.addOrUpdateService({
+              "id": s["id"],
+              "provider_id": widget.providerId,
+              "service_category_id": s["service_category_id"],
+              "title": s["title"],
+
+              "pricing_type": s["pricing_type"] ?? "fixed",
+              "fixed_price": double.tryParse(price.text) ?? 0,
+              "minimum_charge": double.tryParse(minPrice.text),
+
+              "working_schedule": workingSchedule,
+            });
+
                   Navigator.pop(context);
                   _load();
                 },
@@ -549,8 +586,9 @@ if (lunchFrom is String &&
       "service_category_id": s["service_category_id"],
       "title": s["title"],
       "fixed_price": s["fixed_price"] ?? 0,
-      "min_price": s["min_price"],
-      "pricing_unit": s["pricing_unit"] ?? "fixed",
+     "minimum_charge": s["minimum_charge"],
+
+      "pricing_type": s["pricing_type"] ?? "fixed",
       "working_schedule": s["working_schedule"],
       "is_active": active,
     });
@@ -698,10 +736,11 @@ if (lunchFrom is String &&
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        "₹${s["fixed_price"] ?? 0}",
+                    Text(
+                        _priceLabel(s),
                         style: const TextStyle(fontSize: 12),
                       ),
+
                       const SizedBox(height: 4),
                       Text(
                         isOpen ? "OPEN NOW" : "CLOSED",
@@ -793,6 +832,28 @@ if (lunchFrom is String &&
   final today = days[weekday];
   return schedule[today]?["from"];
 }
+String _priceLabel(dynamic s) {
+  final type = s["pricing_type"];
+
+  if (type == "hourly") {
+    return "₹${s["hourly_price"] ?? 0}/hr";
+  }
+
+  if (type == "per_30") {
+    return "₹${s["per_30min_price"] ?? 0}/30m";
+  }
+
+  if (type == "visit") {
+    return "Visit ₹${s["inspection_charge"] ?? 0}";
+  }
+
+  if (type == "hybrid") {
+    return "₹${s["inspection_charge"] ?? 0} + ₹${s["hourly_price"] ?? 0}/hr";
+  }
+
+  return "₹${s["fixed_price"] ?? 0}";
+}
+
 
 }
 

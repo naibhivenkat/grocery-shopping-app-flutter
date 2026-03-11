@@ -1,21 +1,26 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 import '../services/session_manager.dart';
 import 'language_selection_screen.dart';
-
 import 'change_password_screen.dart';
 import 'role_grid_screen.dart';
 
-
-// Placeholders for screens not yet migrated
+// Placeholder screen
 class PlaceholderScreen extends StatelessWidget {
   final String title;
   const PlaceholderScreen(this.title, {super.key});
+
   @override
-  Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: Text(title)));
+  Widget build(BuildContext context) {
+    return Scaffold(appBar: AppBar(title: Text(title)));
+  }
 }
 
 class SettingsScreen extends StatefulWidget {
@@ -29,9 +34,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _username = "Loading...";
   String _role = "Loading...";
   String _version = "";
-  
-  // Backend URL for updates
-  final String updateUrl = "https://grocery-backend-956424262985.asia-south1.run.app/check_update";
+
+  final String updateUrl =
+      "https://grocery-backend-956424262985.asia-south1.run.app/check_update";
 
   @override
   void initState() {
@@ -42,35 +47,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadUserInfo() async {
     final username = await SessionManager.getUsername() ?? "Unknown";
     final role = await SessionManager.getRole() ?? "Unknown";
-    
-    // Get App Version
     final packageInfo = await PackageInfo.fromPlatform();
 
-    if (mounted) {
-      setState(() {
-        _username = username;
-        _role = role[0].toUpperCase() + role.substring(1); // Capitalize
-        _version = packageInfo.version;
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _username = username;
+      _role = role[0].toUpperCase() + role.substring(1);
+      _version = packageInfo.version;
+    });
   }
 
-// --- LOGOUT LOGIC ---
-Future<void> _handleLogout() async {
-  await SessionManager.logout();
-  if (!mounted) return;
+  // ---------------- ABI DETECTION ----------------
+  Future<String> _getDeviceAbi() async {
+    if (!Platform.isAndroid) return "";
 
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (ctx) => const RoleGridScreen()),
-    (route) => false,
-  );
-}
+    final deviceInfo = DeviceInfoPlugin();
+    final androidInfo = await deviceInfo.androidInfo;
 
+    // Preferred ABI is always first
+    return androidInfo.supportedAbis.first;
+  }
 
-  // --- UPDATE CHECK LOGIC ---
+  // ---------------- LOGOUT ----------------
+  Future<void> _handleLogout() async {
+    await SessionManager.logout();
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const RoleGridScreen()),
+      (_) => false,
+    );
+  }
+
+  // ---------------- UPDATE CHECK ----------------
   Future<void> _checkForUpdates() async {
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -78,37 +90,44 @@ Future<void> _handleLogout() async {
     );
 
     try {
-      final response = await http.get(Uri.parse(updateUrl));
-      Navigator.pop(context); // Close loading
+      final abi = await _getDeviceAbi();
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        
-        final int latestCode = data['versionCode'] ?? 0;
-        final String latestName = data['versionName'] ?? "Unknown";
-        final String apkUrl = data['apkUrl'] ?? "";
-        final int sizeBytes = data['apkSize'] ?? 0;
+      final uri = Uri.parse(updateUrl).replace(queryParameters: {
+        "platform": "android",
+        "abi": abi,
+      });
 
-        final packageInfo = await PackageInfo.fromPlatform();
-        final int currentCode = int.parse(packageInfo.buildNumber);
+      final response = await http.get(uri);
+      Navigator.pop(context);
 
-        if (latestCode > currentCode) {
-          _showUpdateDialog(latestName, apkUrl, sizeBytes);
-        } else {
-          _showToast("App is up to date");
-        }
-      } else {
+      if (response.statusCode != 200) {
         _showToast("Failed to check updates");
+        return;
+      }
+
+      final data = jsonDecode(response.body);
+
+      final int latestCode = data["versionCode"];
+      final String latestName = data["versionName"];
+      final String apkUrl = data["apkUrl"];
+      final int apkSize = data["apkSize"];
+
+      final packageInfo = await PackageInfo.fromPlatform();
+      final int currentCode = int.parse(packageInfo.buildNumber);
+
+      if (latestCode > currentCode) {
+        _showUpdateDialog(latestName, apkUrl, apkSize);
+      } else {
+        _showToast("App is up to date");
       }
     } catch (e) {
-      Navigator.pop(context); // Close loading if error
-      _showToast("Error checking updates: $e");
+      Navigator.pop(context);
+      _showToast("Update check failed");
     }
   }
 
+  // ---------------- UPDATE DIALOG ----------------
   void _showUpdateDialog(String version, String url, int size) {
-    String sizeStr = _formatSize(size);
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -118,10 +137,12 @@ Future<void> _handleLogout() async {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("New Version: $version"),
-            const SizedBox(height: 5),
-            Text("Size: $sizeStr"),
-            const SizedBox(height: 10),
-            const Text("A new version of the app is available. Please download to continue."),
+            const SizedBox(height: 6),
+            Text("Size: ${_formatSize(size)}"),
+            const SizedBox(height: 12),
+            const Text(
+              "A new version is available. Download and install to continue.",
+            ),
           ],
         ),
         actions: [
@@ -130,11 +151,14 @@ Future<void> _handleLogout() async {
             child: const Text("Later"),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               _launchUrl(url);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
             child: const Text("Download"),
           ),
         ],
@@ -143,29 +167,32 @@ Future<void> _handleLogout() async {
   }
 
   Future<void> _launchUrl(String urlString) async {
-    final Uri url = Uri.parse(urlString);
-    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-      _showToast("Could not launch $urlString");
+    final uri = Uri.parse(urlString);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      _showToast("Could not open download link");
     }
   }
 
+  // ---------------- HELPERS ----------------
   String _formatSize(int bytes) {
     if (bytes <= 0) return "Unknown";
-    const suffixes = ["B", "KB", "MB", "GB"];
-    var i = 0;
+    const units = ["B", "KB", "MB", "GB"];
     double size = bytes.toDouble();
-    while (size > 1024 && i < suffixes.length - 1) {
+    int i = 0;
+    while (size > 1024 && i < units.length - 1) {
       size /= 1024;
       i++;
     }
-    return "${size.toStringAsFixed(2)} ${suffixes[i]}";
+    return "${size.toStringAsFixed(2)} ${units[i]}";
   }
 
   void _showToast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg)),
+    );
   }
 
-  // --- UI ---
+  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,7 +205,7 @@ Future<void> _handleLogout() async {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Profile Header
+            // Profile header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(24),
@@ -193,11 +220,15 @@ Future<void> _handleLogout() async {
                   const SizedBox(height: 10),
                   Text(
                     _username,
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   Text(
                     "Role: $_role",
-                    style: const TextStyle(fontSize: 16, color: Colors.white70),
+                    style: const TextStyle(color: Colors.white70),
                   ),
                 ],
               ),
@@ -205,31 +236,41 @@ Future<void> _handleLogout() async {
 
             const SizedBox(height: 20),
 
-            // Buttons List
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Column(
                   children: [
-                    _buildSettingsTile(
-                      icon: Icons.lock_outline, 
-                      title: "Change Password",
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
+                    _tile(
+                      Icons.lock_outline,
+                      "Change Password",
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ChangePasswordScreen(),
+                        ),
+                      ),
                     ),
                     const Divider(height: 1),
-                    _buildSettingsTile(
-                      icon: Icons.language, 
-                      title: "Change Language",
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LanguageSelectionScreen())),
+                    _tile(
+                      Icons.language,
+                      "Change Language",
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LanguageSelectionScreen(),
+                        ),
+                      ),
                     ),
                     const Divider(height: 1),
-                    _buildSettingsTile(
-                      icon: Icons.system_update, 
-                      title: "Software Info / Update",
+                    _tile(
+                      Icons.system_update,
+                      "Software Info / Update",
+                      _checkForUpdates,
                       subtitle: "Current Version: $_version",
-                      onTap: _checkForUpdates, // Calls the update logic
                     ),
                   ],
                 ),
@@ -238,7 +279,6 @@ Future<void> _handleLogout() async {
 
             const SizedBox(height: 30),
 
-            // Logout Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SizedBox(
@@ -249,14 +289,14 @@ Future<void> _handleLogout() async {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade50,
                     foregroundColor: Colors.red,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
                     elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
                   ),
                   onPressed: _handleLogout,
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 20),
             Text("Version $_version", style: const TextStyle(color: Colors.grey)),
           ],
@@ -265,16 +305,27 @@ Future<void> _handleLogout() async {
     );
   }
 
-  Widget _buildSettingsTile({required IconData icon, required String title, String? subtitle, required VoidCallback onTap}) {
+  Widget _tile(
+    IconData icon,
+    String title,
+    VoidCallback onTap, {
+    String? subtitle,
+  }) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(8),
+        ),
         child: Icon(icon, color: Colors.green),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-      subtitle: subtitle != null ? Text(subtitle, style: const TextStyle(color: Colors.grey)) : null,
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+      subtitle: subtitle != null
+          ? Text(subtitle, style: const TextStyle(color: Colors.grey))
+          : null,
+      trailing:
+          const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
       onTap: onTap,
     );
   }

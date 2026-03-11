@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lottie/lottie.dart'; // Optional: Add lottie package for animation
+import 'package:lottie/lottie.dart'; 
 import 'dart:async';
 import '../services/api_service.dart';
 import '../services/session_manager.dart';

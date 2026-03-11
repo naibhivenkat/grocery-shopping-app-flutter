@@ -4,93 +4,89 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 
+import '../service_module/provider/screens/chat_screen.dart';
 import 'session_manager.dart';
 
-// ✅ Background Message Handler (Must be top-level function)
+
+import '../main.dart';
+
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  try {
-    await Firebase.initializeApp();
-    debugPrint("🔔 Background message: ${message.messageId}");
-  } catch (e) {
-    debugPrint("⚠️ Background handler Firebase init failed: $e");
-  }
+  await Firebase.initializeApp();
 }
 
 class NotificationService {
-  static final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  static final FirebaseMessaging _firebaseMessaging =
+      FirebaseMessaging.instance;
+
   static final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
 
-  // ✅ Android Channel (only used on Android)
-  static const AndroidNotificationChannel _androidChannel = AndroidNotificationChannel(
-    'high_importance_channel', // id
-    'High Importance Notifications', // title
-    description: 'This channel is used for important notifications.',
+  static const AndroidNotificationChannel _androidChannel =
+      AndroidNotificationChannel(
+    'high_importance_channel',
+    'High Importance Notifications',
     importance: Importance.high,
   );
 
-  // ✅ Initialize Notifications
+  //////////////////////////////////////////////////////////////
+  /// INITIALIZE
+  //////////////////////////////////////////////////////////////
   static Future<void> initialize() async {
     try {
-      // ✅ 1) Request Permission (iOS will show permission popup)
-      final settings = await _firebaseMessaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await _firebaseMessaging.requestPermission();
 
-      debugPrint("✅ Notification permission: ${settings.authorizationStatus}");
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
 
-      // ✅ 2) Background Handler
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-      // ✅ 3) Local Notifications init (Android + iOS)
       await _initLocalNotifications();
 
-      // ✅ 4) Foreground Message handler
+      /// FOREGROUND MESSAGE
       FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
         await _showForegroundNotification(message);
       });
 
-      // ✅ 5) Optional: When user taps notification and app opens
-      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-        debugPrint("📲 Notification clicked: ${message.messageId}");
-        // You can navigate to some page here if needed
-      });
+      /// CLICK HANDLER (APP IN BACKGROUND)
+      FirebaseMessaging.onMessageOpenedApp
+          .listen(_handleNotificationNavigation);
 
-      // ✅ 6) Token upload (safe)
+      /// TOKEN UPLOAD
       await checkAndUploadToken();
     } catch (e) {
-      // ✅ Prevent app crash (especially iOS simulator)
-      debugPrint("⚠️ Notification init skipped (safe): $e");
+      debugPrint("Notification init safe error: $e");
     }
   }
 
-  // ✅ Local Notification Init
+  //////////////////////////////////////////////////////////////
+  /// LOCAL NOTIFICATION INIT
+  //////////////////////////////////////////////////////////////
   static Future<void> _initLocalNotifications() async {
-    // Android init
-    const AndroidInitializationSettings androidSettings =
+    const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_notification');
 
-    // iOS init
-    const DarwinInitializationSettings iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
+    const iosSettings = DarwinInitializationSettings();
 
-    const InitializationSettings initSettings = InitializationSettings(
+    const initSettings = InitializationSettings(
       android: androidSettings,
       iOS: iosSettings,
     );
 
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) {
+        // When foreground notification tapped
+        if (details.payload != null) {
+          final data = jsonDecode(details.payload!);
+          _navigate(data);
+        }
+      },
+    );
 
-    // ✅ Create Android notification channel only on Android
     if (!kIsWeb && Platform.isAndroid) {
       await _localNotifications
           .resolvePlatformSpecificImplementation<
@@ -99,67 +95,77 @@ class NotificationService {
     }
   }
 
-  // ✅ Foreground Notification
-  static Future<void> _showForegroundNotification(RemoteMessage message) async {
-    try {
-      final RemoteNotification? notification = message.notification;
+  //////////////////////////////////////////////////////////////
+  /// FOREGROUND NOTIFICATION SHOW
+  //////////////////////////////////////////////////////////////
+  static Future<void> _showForegroundNotification(
+      RemoteMessage message) async {
 
-      // If notification is null, skip
-      if (notification == null) return;
+    final notification = message.notification;
+    if (notification == null) return;
 
-      // Android details
-      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        _androidChannel.id,
-        _androidChannel.name,
-        channelDescription: _androidChannel.description,
-        icon: '@mipmap/ic_notification',
-        importance: Importance.high,
-        priority: Priority.high,
-      );
-
-      // iOS details
-      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
-        presentAlert: true,
-        presentBadge: true,
-        presentSound: true,
-      );
-
-      await _localNotifications.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        NotificationDetails(
-          android: androidDetails,
-          iOS: iosDetails,
+    await _localNotifications.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _androidChannel.id,
+          _androidChannel.name,
+          importance: Importance.high,
+          priority: Priority.high,
+          icon: '@mipmap/ic_notification',
         ),
-      );
-    } catch (e) {
-      debugPrint("⚠️ Foreground notification show error: $e");
-    }
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: jsonEncode(message.data), // 🔥 important
+    );
   }
 
-  // ✅ MADE PUBLIC: Call this from Login Screen after saving session
+  //////////////////////////////////////////////////////////////
+  /// NAVIGATION HANDLER
+  //////////////////////////////////////////////////////////////
+  static void _handleNotificationNavigation(RemoteMessage message) {
+    _navigate(message.data);
+  }
+
+
+  static void _navigate(Map<String, dynamic> data) {
+  final type = data["type"];
+  final bookingId = data["booking_id"];
+  final userId = data["receiver_id"];
+
+  if (type == "chat" && bookingId != null && userId != null) {
+    navigatorKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => ChatScreen(
+          bookingId: bookingId,
+          myUserId: userId,
+        ),
+      ),
+    );
+  }
+
+  if (type == "booking" && bookingId != null) {
+    navigatorKey.currentState?.pushNamed(
+      "/booking-detail",
+      arguments: bookingId,
+    );
+  }
+
+  if (type == "payment") {
+    navigatorKey.currentState?.pushNamed("/wallet");
+  }
+}
+
+  //////////////////////////////////////////////////////////////
+  /// TOKEN UPLOAD
+  //////////////////////////////////////////////////////////////
   static Future<void> checkAndUploadToken() async {
     try {
-      // ✅ iOS Simulator note: APNS token may be null, FCM token may fail
-      if (!kIsWeb && Platform.isIOS) {
-        try {
-          final apnsToken = await _firebaseMessaging.getAPNSToken();
-          debugPrint("🍏 APNS Token (iOS): $apnsToken");
-        } catch (e) {
-          debugPrint("⚠️ APNS token not available (simulator): $e");
-        }
-      }
-
       String? token = await _firebaseMessaging.getToken();
-      if (token == null || token.isEmpty) {
-        debugPrint("⚠️ FCM token not available right now.");
-        return;
-      }
+      if (token == null) return;
 
-      debugPrint("✅ FCM Token: $token");
-
-      // ✅ Get User Details
       String? role = await SessionManager.getRole();
       String? userId;
 
@@ -167,41 +173,32 @@ class NotificationService {
         userId = await SessionManager.getCustomerId();
       } else if (role == "shopowner" || role == "shopkeeper") {
         userId = await SessionManager.getShopkeeperId();
+      } else if (role == "provider") {
+        userId = await SessionManager.getServiceUserId();
       }
 
-      if (userId != null && role != null && role.isNotEmpty) {
-        await _registerTokenOnServer(userId, role, token);
-      } else {
-        debugPrint("⚠️ Token not sent: userId/role missing");
+      if (userId != null) {
+        await _registerTokenOnServer(userId, role!, token);
       }
     } catch (e) {
-      debugPrint("⚠️ checkAndUploadToken error (safe): $e");
+      debugPrint("Token upload error: $e");
     }
   }
 
   static Future<void> _registerTokenOnServer(
       String userId, String role, String token) async {
-    final String baseUrl =
+
+    const baseUrl =
         "https://grocery-backend-956424262985.asia-south1.run.app";
 
-    try {
-      final res = await http.post(
-        Uri.parse('$baseUrl/api/register_fcm_token'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "user_id": userId,
-          "role": role,
-          "token": token,
-        }),
-      );
-
-      if (res.statusCode == 200) {
-        debugPrint("✅ FCM Token registered with backend");
-      } else {
-        debugPrint("⚠️ Backend token register failed: ${res.statusCode} ${res.body}");
-      }
-    } catch (e) {
-      debugPrint("❌ Failed to register FCM token: $e");
-    }
+    await http.post(
+      Uri.parse('$baseUrl/service/api/register_fcm_token'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "user_id": userId,
+        "role": role,
+        "token": token,
+      }),
+    );
   }
 }

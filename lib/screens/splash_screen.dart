@@ -4,11 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'customer_home_screen.dart';
 import 'shop_owner_dashboard.dart';
-
-// ✅ NEW GRID ROLE SCREEN
 import 'role_grid_screen.dart';
-
-// ✅ Service Login Screen
 import '../service_module/provider/screens/service_login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
