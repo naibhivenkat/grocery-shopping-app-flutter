@@ -81,7 +81,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
         // ✅ Save login
         await SessionManager.saveLogin(user['username'] ?? "", serverRole);
-        await SessionManager.setServiceUserId(user["uid"]);
+
+            await SessionManager.setServiceUserId(
+      (user["uid"] ??
+              user["id"] ??
+              user["customerId"] ??
+              user["shopkeeperId"] ??
+              "")
+          .toString(),
+    );
+
+    print("LOGIN RESPONSE: ${response.body}");
+print("USER DATA: $user");
+print("SERVER ROLE: $serverRole");
         await NotificationService.checkAndUploadToken();
         String? token = await FirebaseMessaging.instance.getToken();
         print("🔥 DEVICE FCM TOKEN = $token");
