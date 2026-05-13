@@ -38,7 +38,7 @@ flutter_ios_podfile_setup
 # - firebase_auth 6.1.4
 # - cloud_firestore 6.4.0
 # - firebase_messaging
-$FirebaseSDKVersion = '12.2.0'
+$FirebaseSDKVersion = '12.4.0'
 
 target 'Runner' do
   use_frameworks! :linkage => :static
