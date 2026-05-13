@@ -37,7 +37,8 @@ target 'Runner' do
   pod 'Firebase/Firestore', $FirebaseSDKVersion
   pod 'Firebase/Messaging', $FirebaseSDKVersion
   pod 'FirebaseSharedSwift', '= 12.2.0'
-  pod 'razorpay-pod', '1.4.4'
+
+
 
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
 end
