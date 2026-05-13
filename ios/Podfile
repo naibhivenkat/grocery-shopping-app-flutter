@@ -36,7 +36,7 @@ target 'Runner' do
   pod 'Firebase/CoreOnly', $FirebaseSDKVersion
   pod 'Firebase/Firestore', $FirebaseSDKVersion
   pod 'Firebase/Messaging', $FirebaseSDKVersion
-  pod 'FirebaseSharedSwift', '= 12.2.0'
+  pod 'FirebaseSharedSwift', '= 11.6.0'
 
 
 
