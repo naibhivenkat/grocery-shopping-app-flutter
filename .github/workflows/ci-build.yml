@@ -117,35 +117,44 @@ jobs:
       
           echo "Patching Razorpay plugin in: $PLUGIN_DIR"
       
-          # Replace:
-          #   checkout.subscribeToAnalyticsEvents()
-          # with:
-          #   []
+          # ------------------------------------------------------
+          # 1. Replace the unsupported SDK call inside the delegate
+          #    razorpay.subscribeToAnalyticsEvents(events, callback: self)
+          #    -> return
+          # ------------------------------------------------------
           if [ -f "$DELEGATE_FILE" ]; then
             perl -0pi -e \
-              's/checkout\.subscribeToAnalyticsEvents\(\)/\[\]/g' \
+              's/razorpay\.subscribeToAnalyticsEvents\(events, callback: self\)/return/g' \
               "$DELEGATE_FILE"
           fi
       
-          # Replace:
-          #   razorpayDelegate.subscribeToAnalyticsEvents(call, result: result)
-          # with:
-          #   result(nil)
+          # ------------------------------------------------------
+          # 2. Replace the plugin method invocation
+          #    razorpayDelegate.subscribeToAnalyticsEvents(events: events)
+          #    -> result(nil)
+          # ------------------------------------------------------
           if [ -f "$PLUGIN_FILE" ]; then
             perl -0pi -e \
-              's/razorpayDelegate\.subscribeToAnalyticsEvents\(call, result: result\)/result(nil)/g' \
+              's/razorpayDelegate\.subscribeToAnalyticsEvents\(events: events\)/result(nil)/g' \
               "$PLUGIN_FILE"
           fi
       
-          # Verify that no references remain
-          echo "Checking for remaining references..."
-          if grep -R "subscribeToAnalyticsEvents" "$PLUGIN_DIR"; then
-            echo "ERROR: subscribeToAnalyticsEvents still exists after patch."
+          # ------------------------------------------------------
+          # 3. Verify only method definitions and switch labels remain
+          # ------------------------------------------------------
+          echo "Verifying patch..."
+      
+          if grep -n "razorpay\.subscribeToAnalyticsEvents" "$DELEGATE_FILE"; then
+            echo "ERROR: Native Razorpay SDK call still exists."
             exit 1
-          else
-            echo "Razorpay plugin patched successfully."
           fi
-          
+      
+          if grep -n "razorpayDelegate\.subscribeToAnalyticsEvents(events: events)" "$PLUGIN_FILE"; then
+            echo "ERROR: Plugin method invocation still exists."
+            exit 1
+          fi
+      
+          echo "Razorpay plugin patched successfully."
       - name: Pod Install (Fresh)
         run: |
           cd ios
