@@ -84,6 +84,10 @@ jobs:
       - name: Disable Flutter Analytics
         run: flutter config --no-analytics
 
+      # Required for FirebaseSharedSwift 12.2.0 ("sending" keyword)
+      - name: Select Xcode 16.2
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
       - name: Xcode Version
         run: |
           xcodebuild -version
@@ -111,50 +115,41 @@ jobs:
       - name: Patch Razorpay iOS Plugin
         run: |
           PLUGIN_DIR="$HOME/.pub-cache/hosted/pub.dev/razorpay_flutter-1.4.5/ios/Classes"
-      
+
           DELEGATE_FILE="$PLUGIN_DIR/RazorpayDelegate.swift"
           PLUGIN_FILE="$PLUGIN_DIR/SwiftRazorpayFlutterPlugin.swift"
-      
+
           echo "Patching Razorpay plugin in: $PLUGIN_DIR"
-      
-          # ------------------------------------------------------
-          # 1. Replace the unsupported SDK call inside the delegate
-          #    razorpay.subscribeToAnalyticsEvents(events, callback: self)
-          #    -> return
-          # ------------------------------------------------------
+
+          # Replace unsupported native SDK call
           if [ -f "$DELEGATE_FILE" ]; then
             perl -0pi -e \
               's/razorpay\.subscribeToAnalyticsEvents\(events, callback: self\)/return/g' \
               "$DELEGATE_FILE"
           fi
-      
-          # ------------------------------------------------------
-          # 2. Replace the plugin method invocation
-          #    razorpayDelegate.subscribeToAnalyticsEvents(events: events)
-          #    -> result(nil)
-          # ------------------------------------------------------
+
+          # Replace plugin method invocation
           if [ -f "$PLUGIN_FILE" ]; then
             perl -0pi -e \
               's/razorpayDelegate\.subscribeToAnalyticsEvents\(events: events\)/result(nil)/g' \
               "$PLUGIN_FILE"
           fi
-      
-          # ------------------------------------------------------
-          # 3. Verify only method definitions and switch labels remain
-          # ------------------------------------------------------
+
+          # Verify patch
           echo "Verifying patch..."
-      
+
           if grep -n "razorpay\.subscribeToAnalyticsEvents" "$DELEGATE_FILE"; then
             echo "ERROR: Native Razorpay SDK call still exists."
             exit 1
           fi
-      
+
           if grep -n "razorpayDelegate\.subscribeToAnalyticsEvents(events: events)" "$PLUGIN_FILE"; then
             echo "ERROR: Plugin method invocation still exists."
             exit 1
           fi
-      
+
           echo "Razorpay plugin patched successfully."
+
       - name: Pod Install (Fresh)
         run: |
           cd ios

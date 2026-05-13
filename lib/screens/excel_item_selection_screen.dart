@@ -37,7 +37,7 @@ class _ExcelItemSelectionScreenState extends State<ExcelItemSelectionScreen> {
   // LOCAL EXCEL FILE PATH (ASSET PATH)
   // ============================================================
 
-  static const String excelAssetPath = 'assets/data/items.xlsx';
+  static const String excelAssetPath = 'assets/data/Pooje_Item_list.xlsx';
 
   List<String> allItems = [];
   List<String> filteredItems = [];
@@ -61,13 +61,23 @@ class _ExcelItemSelectionScreenState extends State<ExcelItemSelectionScreen> {
   // ============================================================
   // LOAD EXCEL FROM LOCAL ASSET
   // ============================================================
+// ============================================================
+// CATEGORY SUPPORT
+// ============================================================
+
+Map<String, List<String>> categoryItems = {};
+List<String> categories = [];
+String? selectedCategory;
+
+// ============================================================
+// LOAD EXCEL FROM ALL SHEETS
+// ============================================================
+
 Future<void> loadExcelData() async {
   try {
-    // Load asset file
     final ByteData data = await rootBundle.load(excelAssetPath);
     final Uint8List bytes = data.buffer.asUint8List();
 
-    // Decode Excel
     final decoder = SpreadsheetDecoder.decodeBytes(
       bytes,
       update: false,
@@ -77,58 +87,81 @@ Future<void> loadExcelData() async {
       throw Exception('Excel file contains no sheets.');
     }
 
-    // Get first sheet
-    final String sheetName = decoder.tables.keys.first;
-    final table = decoder.tables[sheetName];
+    // Your file has one sheet (usually "Sheet1")
+    final table = decoder.tables.values.first;
 
-    if (table == null) {
-      throw Exception('Unable to read sheet: $sheetName');
-    }
+    final Map<String, List<String>> loadedCategoryItems = {};
+    final Set<String> allUniqueItems = {};
 
-    final List<String> items = [];
-
-    // Read all rows
+    // Determine maximum number of columns
+    int maxColumns = 0;
     for (final row in table.rows) {
-      if (row.isEmpty) continue;
-      if (row[0] == null) continue;
-
-      final String value = row[0].toString().trim();
-
-      if (value.isEmpty) continue;
-
-      // Skip header row
-      final lower = value.toLowerCase();
-      if (lower == 'item' ||
-          lower == 'item name' ||
-          lower == 'name' ||
-          lower == 'items') {
-        continue;
-      }
-
-      items.add(value);
-    }
-
-    // Remove duplicates
-    final List<String> uniqueItems = [];
-    final Set<String> seen = {};
-
-    for (final item in items) {
-      if (!seen.contains(item)) {
-        seen.add(item);
-        uniqueItems.add(item);
+      if (row.length > maxColumns) {
+        maxColumns = row.length;
       }
     }
 
-    // Create controllers
-    for (final item in uniqueItems) {
-      quantityControllers[item] = TextEditingController();
+    // Read each column
+    for (int col = 0; col < maxColumns; col++) {
+      String? categoryName;
+      final List<String> items = [];
+
+      // Read all rows in this column
+      for (int rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
+        final row = table.rows[rowIndex];
+
+        if (col >= row.length) continue;
+
+        final cell = row[col];
+        if (cell == null) continue;
+
+        final value = cell.toString().trim();
+        if (value.isEmpty) continue;
+
+        // First non-empty cell = category name
+        if (categoryName == null) {
+          categoryName = value;
+          continue;
+        }
+
+        // Remaining cells = items
+        items.add(value);
+        allUniqueItems.add(value);
+      }
+
+      // Save category if it has items
+      if (categoryName != null && items.isNotEmpty) {
+        loadedCategoryItems[categoryName] = items;
+      }
+    }
+
+    // Create quantity controllers for all items
+    for (final item in allUniqueItems) {
+      quantityControllers[item] ??= TextEditingController();
+    }
+
+    final List<String> loadedCategories =
+        loadedCategoryItems.keys.toList();
+
+    if (loadedCategories.isEmpty) {
+      throw Exception(
+        'No categories or items found in Excel columns.',
+      );
     }
 
     if (!mounted) return;
 
     setState(() {
-      allItems = uniqueItems;
-      filteredItems = List.from(uniqueItems);
+      categoryItems = loadedCategoryItems;
+      categories = loadedCategories;
+      selectedCategory = categories.first;
+
+      allItems = List.from(
+        categoryItems[selectedCategory] ?? [],
+      );
+
+      filteredItems = List.from(allItems);
+
       isLoading = false;
       errorMessage = null;
     });
@@ -143,48 +176,70 @@ Future<void> loadExcelData() async {
       isLoading = false;
     });
   }
-}  
-  
+}
+
+
   // ============================================================
   // SEARCH FILTER
   // ============================================================
-  void filterItems(String query) {
-    setState(() {
-      if (query.trim().isEmpty) {
-        filteredItems = List.from(allItems);
-      } else {
-        final q = query.toLowerCase();
-        filteredItems = allItems
-            .where((item) => item.toLowerCase().contains(q))
-            .toList();
-      }
-    });
-  }
+void filterItems(String query) {
+  final List<String> baseItems =
+      categoryItems[selectedCategory] ?? [];
 
+  setState(() {
+    allItems = List.from(baseItems);
+
+    if (query.trim().isEmpty) {
+      filteredItems = List.from(baseItems);
+    } else {
+      final q = query.toLowerCase();
+      filteredItems = baseItems
+          .where(
+            (item) => item.toLowerCase().contains(q),
+          )
+          .toList();
+    }
+  });
+}
   // ============================================================
   // GET SELECTED ITEMS
   // ============================================================
-  List<SelectedItem> getSelectedItems() {
-    final List<SelectedItem> selected = [];
 
-    for (final item in allItems) {
-      final String text = quantityControllers[item]?.text.trim() ?? '';
+List<SelectedItem> getSelectedItems() {
+  final List<SelectedItem> selected = [];
 
-      if (text.isEmpty) continue;
+  // Iterate through ALL items across ALL categories
+  for (final entry in quantityControllers.entries) {
+    final String itemName = entry.key;
+    final TextEditingController controller = entry.value;
 
-      final int? qty = int.tryParse(text);
-      if (qty == null || qty <= 0) continue;
+    final String text = controller.text.trim();
 
-      selected.add(
-        SelectedItem(
-          name: item,
-          quantity: qty,
-        ),
-      );
-    }
+    // Skip empty quantities
+    if (text.isEmpty) continue;
 
-    return selected;
+    // Parse quantity
+    final int? qty = int.tryParse(text);
+
+    // Skip invalid or zero quantities
+    if (qty == null || qty <= 0) continue;
+
+    // Add selected item
+    selected.add(
+      SelectedItem(
+        name: itemName,
+        quantity: qty,
+      ),
+    );
   }
+
+  // Optional: sort alphabetically for consistent display
+  selected.sort(
+    (a, b) => a.name.compareTo(b.name),
+  );
+
+  return selected;
+}
 
   // ============================================================
   // CONFIRM SELECTION
@@ -530,112 +585,179 @@ actions: [
     );
   }
 
-  Widget buildBody() {
-    if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    if (errorMessage != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            errorMessage!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.red),
-          ),
-        ),
-      );
-    }
-
-    if (allItems.isEmpty) {
-      return const Center(
-        child: Text('No items found in Excel file.'),
-      );
-    }
-
-    return Column(
-      children: [
-        // Search Box
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: TextField(
-            controller: searchController,
-            decoration: const InputDecoration(
-              labelText: 'Search (Kannada or English)',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-
-        // Item Count
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Total Items: ${filteredItems.length}',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Items List
-        Expanded(
-          child: ListView.builder(
-            itemCount: filteredItems.length,
-            itemBuilder: (context, index) {
-              final item = filteredItems[index];
-              final controller = quantityControllers[item]!;
-
-              return Card(
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    children: [
-                      // Item Name
-                      Expanded(
-                        flex: 3,
-                        child: Text(
-                          item,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      // Quantity Input
-                      SizedBox(
-                        width: 90,
-                        child: TextField(
-                          controller: controller,
-                          keyboardType: TextInputType.number,
-                          textAlign: TextAlign.center,
-                          decoration: const InputDecoration(
-                            labelText: 'Qty',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+ Widget buildBody() {
+  if (isLoading) {
+    return const Center(
+      child: CircularProgressIndicator(),
     );
   }
-}
+
+  if (errorMessage != null) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          errorMessage!,
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.red),
+        ),
+      ),
+    );
+  }
+
+  if (categories.isEmpty) {
+    return const Center(
+      child: Text('No categories found in Excel file.'),
+    );
+  }
+
+  return Column(
+    children: [
+      // ==========================================================
+      // SEARCH BOX
+      // ==========================================================
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+        child: TextField(
+          controller: searchController,
+          decoration: const InputDecoration(
+            labelText: 'Search (Kannada or English)',
+            prefixIcon: Icon(Icons.search),
+            border: OutlineInputBorder(),
+          ),
+        ),
+      ),
+
+      // ==========================================================
+      // CATEGORY DROPDOWN (EXCEL SHEET SELECTOR)
+      // ==========================================================
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: DropdownButtonFormField<String>(
+          value: selectedCategory,
+          isExpanded: true,
+          decoration: const InputDecoration(
+            labelText: 'Select Category',
+            prefixIcon: Icon(Icons.category),
+            border: OutlineInputBorder(),
+          ),
+          items: categories.map((category) {
+            return DropdownMenuItem<String>(
+              value: category,
+              child: Text(
+                category,
+                overflow: TextOverflow.ellipsis,
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value == null) return;
+
+            setState(() {
+              selectedCategory = value;
+            });
+
+            // Reload items for the selected category
+            filterItems(searchController.text);
+          },
+        ),
+      ),
+
+      const SizedBox(height: 8),
+
+      // ==========================================================
+      // CATEGORY + ITEM COUNT INFO
+      // ==========================================================
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Category: ${selectedCategory ?? ''}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blueGrey,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              'Items: ${filteredItems.length}',
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      const SizedBox(height: 8),
+
+      // ==========================================================
+      // ITEMS LIST
+      // ==========================================================
+      Expanded(
+        child: filteredItems.isEmpty
+            ? const Center(
+                child: Text(
+                  'No items found in this category.',
+                ),
+              )
+            : ListView.builder(
+                itemCount: filteredItems.length,
+                itemBuilder: (context, index) {
+                  final item = filteredItems[index];
+                  final controller =
+                      quantityControllers[item]!;
+
+                  return Card(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          // Item Name
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          // Quantity Input
+                          SizedBox(
+                            width: 90,
+                            child: TextField(
+                              controller: controller,
+                              keyboardType:
+                                  TextInputType.number,
+                              textAlign: TextAlign.center,
+                              decoration:
+                                  const InputDecoration(
+                                labelText: 'Qty',
+                                border:
+                                    OutlineInputBorder(),
+                                isDense: true,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ],
+  );
+}}

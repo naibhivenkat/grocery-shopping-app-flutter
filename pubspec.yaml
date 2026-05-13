@@ -58,7 +58,7 @@ flutter:
     - assets/images/dairy/
     - assets/images/grains/
     - assets/app_logo.png
-    - assets/data/items.xlsx
+    - assets/data/Pooje_Item_list.xlsx
     - assets/fonts/NotoSerifKannada-Regular.ttf
 
 flutter_launcher_icons:
