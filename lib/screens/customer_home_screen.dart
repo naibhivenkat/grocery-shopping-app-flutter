@@ -12,6 +12,9 @@ import 'shop_selection_screen.dart';
 import 'customer_orders_screen.dart';
 import 'wallet_screen.dart';
 
+import 'excel_item_selection_screen.dart';
+
+
 class PlaceholderScreen extends StatelessWidget {
   final String title;
   const PlaceholderScreen(this.title, {super.key});
@@ -289,6 +292,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       );
                     },
                   ),
+
+                  _buildDashboardCard(
+  icon: Icons.table_chart,
+  label: "Excel Test",
+  color: Colors.deepOrange,
+
+
+onTap: () {
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (_) => const ExcelItemSelectionScreen(),
+    ),
+  );
+},
+),
                 ],
               ),
             ),

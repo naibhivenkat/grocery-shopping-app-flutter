@@ -30,6 +30,8 @@ dependencies:
   flutter_local_notifications: ^19.5.0
   lottie: ^3.1.0
   device_info_plus: ^10.1.0
+  path_provider: ^2.1.5
+  spreadsheet_decoder: ^2.3.0
 
 
   flutter_localizations:
@@ -56,6 +58,8 @@ flutter:
     - assets/images/dairy/
     - assets/images/grains/
     - assets/app_logo.png
+    - assets/data/items.xlsx
+    - assets/fonts/NotoSerifKannada-Regular.ttf
 
 flutter_launcher_icons:
   android: true

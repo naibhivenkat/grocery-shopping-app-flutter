@@ -110,15 +110,42 @@ jobs:
 
       - name: Patch Razorpay iOS Plugin
         run: |
-          RAZORPAY_FILE="$HOME/.pub-cache/hosted/pub.dev/razorpay_flutter-1.4.5/ios/Classes/RazorpayDelegate.swift"
+          PLUGIN_DIR="$HOME/.pub-cache/hosted/pub.dev/razorpay_flutter-1.4.5/ios/Classes"
       
-          if [ -f "$RAZORPAY_FILE" ]; then
-            # Replace only the unsupported method call while preserving Swift syntax
+          DELEGATE_FILE="$PLUGIN_DIR/RazorpayDelegate.swift"
+          PLUGIN_FILE="$PLUGIN_DIR/SwiftRazorpayFlutterPlugin.swift"
+      
+          echo "Patching Razorpay plugin in: $PLUGIN_DIR"
+      
+          # Replace:
+          #   checkout.subscribeToAnalyticsEvents()
+          # with:
+          #   []
+          if [ -f "$DELEGATE_FILE" ]; then
             perl -0pi -e \
               's/checkout\.subscribeToAnalyticsEvents\(\)/\[\]/g' \
-              "$RAZORPAY_FILE"
+              "$DELEGATE_FILE"
           fi
-
+      
+          # Replace:
+          #   razorpayDelegate.subscribeToAnalyticsEvents(call, result: result)
+          # with:
+          #   result(nil)
+          if [ -f "$PLUGIN_FILE" ]; then
+            perl -0pi -e \
+              's/razorpayDelegate\.subscribeToAnalyticsEvents\(call, result: result\)/result(nil)/g' \
+              "$PLUGIN_FILE"
+          fi
+      
+          # Verify that no references remain
+          echo "Checking for remaining references..."
+          if grep -R "subscribeToAnalyticsEvents" "$PLUGIN_DIR"; then
+            echo "ERROR: subscribeToAnalyticsEvents still exists after patch."
+            exit 1
+          else
+            echo "Razorpay plugin patched successfully."
+          fi
+          
       - name: Pod Install (Fresh)
         run: |
           cd ios
