@@ -111,8 +111,12 @@ jobs:
       - name: Patch Razorpay iOS Plugin
         run: |
           RAZORPAY_FILE="$HOME/.pub-cache/hosted/pub.dev/razorpay_flutter-1.4.5/ios/Classes/RazorpayDelegate.swift"
+      
           if [ -f "$RAZORPAY_FILE" ]; then
-            sed -i '' '/subscribeToAnalyticsEvents/d' "$RAZORPAY_FILE"
+            # Replace only the unsupported method call while preserving Swift syntax
+            perl -0pi -e \
+              's/checkout\.subscribeToAnalyticsEvents\(\)/\[\]/g' \
+              "$RAZORPAY_FILE"
           fi
 
       - name: Pod Install (Fresh)
